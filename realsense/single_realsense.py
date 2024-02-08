@@ -288,21 +288,43 @@ class SingleRealsense(mp.Process):
         path_len = len(video_path.encode('utf-8'))
         if path_len > self.MAX_PATH_LENGTH:
             raise RuntimeError('video_path too long.')
-        self.command_queue.put({
-            'cmd': Command.START_RECORDING.value,
-            'video_path': video_path,
-            'recording_start_time': start_time
-        })
+
+        video_path = str(video_path)
+    #     start_time = command['recording_start_time']
+    #     if start_time < 0:
+    #         start_time = None
+        if self.color_video_recorder:
+            self.color_video_recorder.start(video_path)
+        if self.depth_video_recorder:
+            # add _depth to path
+            video_path = Path(video_path)
+            video_path = video_path.parent.joinpath(
+                video_path.stem + '_depth' + video_path.suffix)
+            self.depth_video_recorder.start(video_path)
+        # self.command_queue.put({
+        #     'cmd': Command.START_RECORDING.value,
+        #     'video_path': video_path,
+        #     'recording_start_time': start_time
+        # })
         
     def stop_recording(self):
-        self.command_queue.put({
-            'cmd': Command.STOP_RECORDING.value
-        })
+        if self.color_video_recorder:
+            self.color_video_recorder.stop()
+        if self.depth_video_recorder:
+            self.depth_video_recorder.stop()
+        # self.command_queue.put({
+        #     'cmd': Command.STOP_RECORDING.value
+        # })
     
     def record_frame(self):
-        self.command_queue.put({
-            'cmd': Command.RECORD_FRAME.value
-        })
+        rec_data = self.get()
+        if self.color_video_recorder:
+            self.color_video_recorder.record_frame(rec_data["color"])
+        if self.depth_video_recorder:
+            self.depth_video_recorder.record_frame(rec_data["depth"])
+        # self.command_queue.put({
+        #     'cmd': Command.RECORD_FRAME.value
+        # })
     
     def restart_put(self, start_time):
         self.command_queue.put({

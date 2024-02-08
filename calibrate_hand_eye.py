@@ -207,7 +207,7 @@ if __name__ == "__main__":
         robot, 
         pose_sampler, 
         marker_detector,
-        15)
+        20)
 
     # tcp_poses.append(robot.get_tcp_pose())
     
@@ -225,7 +225,7 @@ if __name__ == "__main__":
     res = {
         "X_EV": X_EV.tolist(),
     }
-    with open("hand_eye.json", "w") as f:
+    with open("data/camera_calibration/hand_eye.json", "w") as f:
         json.dump(res, f)
 
     # visualize_calibration_gripper_cam(cam, T_tcp_cam)

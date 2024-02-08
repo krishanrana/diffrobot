@@ -70,6 +70,9 @@ class Robot:
         self.frankx.set_dynamic_rel(0.1)
         self.home_joints = [0.0, -np.pi/4, 0.0, -3*np.pi/4, 0.0, np.pi/2, np.pi/4]
     
+    def recover_from_errors(self):
+        self.frankx.recover_from_errors()
+    
     def move_to_joints(self, q):
         self.frankx.move(JointMotion(q))
 
@@ -84,10 +87,11 @@ class Robot:
         q = ik(X)
         self.move_to_joints(q)
     
-    def set_dynamic_rel(self, val:float):
+    def set_dynamic_rel(self, val:float, accel_rel:float=0.01, jerk_rel:float=0.01):
         self.frankx.set_dynamic_rel(val)
-        self.frankx.jerk_rel = 0.01
-        self.frankx.accel_rel = 0.01
+        self.frankx.jerk_rel = jerk_rel
+        # self.frankx.accel_rel = 0.08
+        self.frankx.accel_rel = accel_rel
     
     def get_orientation(self):
         q = self.frankx.current_pose().quaternion()
