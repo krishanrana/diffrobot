@@ -1,60 +1,65 @@
 import panda_py
 from dynamixel.robot import DynamixelRobot
 import numpy as np
-from robot.robot import Robot, to_affine
+from panda_py import controllers
 import reactivex as rx
 from reactivex import operators as ops
-import time
-from frankx import Waypoint
 
 class Teleop:
 	def __init__(self, hostname: str = "172.16.0.2"):
-		self.panda = Robot(hostname)
-		self.panda.set_dynamic_rel(0.4)
+		self.panda = panda_py.Panda(hostname)
 		self.gello = create_gello()
 		self.home_q = np.deg2rad([-90, 0, 0, -90, 0, 90, 45])
 		self.stop_requested = False
-		self.motion = None
 		self.create_gello_streams()
-		self.robot_pose = None
-	
-	def get_translation(self):
-		if self.motion:
-			return self.motion.current_pose().translation()
-		else:
-			return self.panda.get_tcp_pose()[:3, 3]
 	
 	def home_robot(self):
-		self.panda.move_to_joints(self.home_q)
+		self.panda.move_to_joint_position(self.home_q)
 	
 	def can_control(self) -> bool:
 		gello_q = self.gello.get_joint_state()[:7]
-		q = self.panda.get_joints()
-		return check_joint_discrepency(gello_q, q)
+		self.panda.get_robot().read_once()
+		return check_joint_discrepency(gello_q, self.panda.q)
 	
 	def take_control(self):
 		assert self.stop_requested == False
 		if not self.can_control():
 			raise Exception("Gello and Panda are not in the same configuration")
-		self.panda.move_to_joints(self.gello.get_joint_state()[:7])
+		self.panda.move_to_joint_position(self.gello.get_joint_state()[:7])
+		# impedance = [120.0, 120.0, 500.0, 270.0, 56.0, 0.0]
+		impedance = [120.0, 120.0, 400.0, 280.0, 56.0, 10.0]
+		impedance = np.diag(impedance)
+		# q_nullspace = np.array([0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0])
+		ctrl = controllers.CartesianImpedance(
+			impedance=impedance, 
+			nullspace_stiffness=0.2,
+			damping_ratio=0.99,
+			filter_coeff=0.9,
+			)
+		self.panda.move_to_joint_position([-1.56832675,  0.39303148,  0.02632776, -1.98690212, -0.00319773,  2.35042797, 0.94667396])
+
+		trans = self.panda.get_position()
+		z_height = trans[2]
 		q0 = self.panda.get_orientation()
-		# q0 = np.array([0.99954873, -0.02642627,  0.01265948, -0.00661308])
-		self.motion = self.panda.start_cartesian_controller()
-		print(q0)
+
+		# stiffness = [40, 30, 50, 25, 35, 25, 10]
+		# self.panda.move_to_pose(trans, q0, speed_factor=0.01, stiffness=stiffness)
+
+		# ctrl = controllers.JointPosition(stiffness=stiffness, damping=damping, filter_coeff=0.9)
+		self.panda.start_controller(ctrl)
 
 		print("---------YOU ARE IN CONTROL--------")
-		self.panda.set_dynamic_rel(0.3)
-		# self.panda.frankx.accel_rel=0.02
-		while not self.stop_requested:
-			gello_q = self.gello.get_joint_state()
-			pose = panda_py.fk(gello_q[:7])
-			trans = pose[:3, 3]
-			trans[2] = 0.16
-			print(trans[:2])
-			self.motion.set_next_waypoint(Waypoint(to_affine(trans, q0)))
-			time.sleep(1/20.0)
+		with self.panda.create_context(frequency=200) as ctx:
+			while ctx.ok() and not self.stop_requested:
+				gello_q = self.gello.get_joint_state()
+				pose = panda_py.fk(gello_q[:7])
+				trans = pose[:3, 3]
+				trans[2] = z_height
+				# joint_positions = panda_py.ik(position=trans, orientation=q0)
+				# print(joint_positions)
+				ctrl.set_control(pose[:3,3], q0, q_nullspace=[-1.56832675,  0.39303148,  0.02632776, -1.98690212, -0.00319773,  2.35042797, 0.94667396])
+				# ctrl.set_control(joint_positions)
 		self.stop_requested = False
-		self.motion = None
 		print("--------RELINQUISHED CONTROL-------")
 	
 	def relinquish(self):
@@ -64,6 +69,7 @@ class Teleop:
 		from threading import Thread
 		self.thread = Thread(target=self.take_control)
 		self.thread.start()
+		# self.thread.run()
 	
 	def create_gello_streams(self, frequency=2.0):
 		self.gello_joints_stream = rx.interval(1.0/frequency, scheduler=rx.scheduler.NewThreadScheduler()) \
@@ -90,7 +96,7 @@ def create_gello() -> DynamixelRobot:
 				real=True,
 				joint_ids=(1, 2, 3, 4, 5, 6, 7),
 				joint_offsets=(
-					1 * np.pi / 2,
+					5 * np.pi / 2,
 					2 * np.pi / 2,
 					4 * np.pi / 2,
 					2 * np.pi / 2,
@@ -101,10 +107,7 @@ def create_gello() -> DynamixelRobot:
 				joint_signs=(1, 1, 1, 1, 1, -1, 1),
 				gripper_config=(8, 195, 153),
 			)
-
 def check_joint_discrepency(q1, q2) -> bool:
-	q1 = np.array(q1)
-	q2 = np.array(q2)
 	abs_deltas = np.abs(q1 - q2)
 	id_max_joint_delta = np.argmax(abs_deltas)
 	max_joint_delta = 0.8

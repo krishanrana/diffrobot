@@ -97,6 +97,13 @@ if __name__ == "__main__":
     X_WV = calibrate_static_cam_least_squares(tcp_poses, marker_poses)
     print(X_WV)
 
+    res = {
+        "X_WV": X_WV.tolist(),
+    }
+
+    with open(f"data/camera_calibration/{params.name}_static.json", "w") as f:
+        json.dump(res, f)
+
     X_WE = robot.get_tcp_pose()
     import open3d as o3d
     geometries = []
