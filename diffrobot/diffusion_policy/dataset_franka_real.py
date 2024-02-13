@@ -13,17 +13,15 @@
 #@markdown  - key `action`: shape (pred_horizon, 2)
 
 import numpy as np
+import zarr
 import torch
 import pdb
 import os
 import json
+import av
 import tqdm
 import pickle
 from torchvision.io import read_image
-
-
-
-
 
 
 def create_sample_indices(sequence_length:int,
@@ -36,7 +34,7 @@ def create_sample_indices(sequence_length:int,
     episodes = sorted(os.listdir(os.path.join(dataset_path, "episodes")), key=lambda x: int(x))
     for episode in episodes:
         # read the state.json file which consists of a list of dictionaries
-        state = json.load(open(os.path.join(dataset_path, "episodes", episode, "state.json")))
+        state = json.load(open(os.path.join(dataset_path, "episodes", episode, "images_10/state_10Hz.json")))
 
         # get the length of the episode
         episode_length = len(state)
@@ -53,13 +51,11 @@ def create_sample_indices(sequence_length:int,
     return indices
 
 
-
-
 def sample_sequence_images(dataset_path: str, states: list, episode: int, start_idx: int, end_idx: int):
 
     #Paths to images
-    img_dir_top = os.path.join(dataset_path, "episodes", str(episode), "images", "top")
-    img_dir_left = os.path.join(dataset_path, "episodes", str(episode), "images", "left")
+    img_dir_top = os.path.join(dataset_path, "episodes", str(episode), "images_10", "top")
+    img_dir_left = os.path.join(dataset_path, "episodes", str(episode), "images_10", "left")
 
     # Initialize lists to store slices
     f_top = []
@@ -83,11 +79,6 @@ def sample_sequence_images(dataset_path: str, states: list, episode: int, start_
     }
 
     return data
-
-
-
-  
-
 
 
 
@@ -174,16 +165,16 @@ def create_xy_state_dataset(dataset_path:str):
     episodes = sorted(os.listdir(os.path.join(dataset_path, "episodes")), key=lambda x: int(x))
     for episode in episodes:
         # read the state.json file which consists of a list of dictionaries
-        raw_data = json.load(open(os.path.join(dataset_path, "episodes", episode, "state.json")))
+        raw_data = json.load(open(os.path.join(dataset_path, "episodes", episode ,"images_10/state_10Hz.json")))
         temp = []
         for idx in range(len(raw_data)):
-            pose = np.array(raw_data[idx]['X_BE'])[:2,3]
+            pose = np.array(raw_data[idx])[:2,3]
             temp.append(pose)
         
         state.append(temp)
 
     # save file as pickle
-    with open(f'{dataset_path}/all_states.pkl', 'wb') as f:
+    with open(f'{dataset_path}/all_states_10Hz.pkl', 'wb') as f:
         pickle.dump(state, f)
 
     return
@@ -230,7 +221,7 @@ class PushTImageDataset(torch.utils.data.Dataset):
                  transform):
         
         self.dataset_path = dataset_path
-        self.all_states = np.load(f'{dataset_path}/all_states.pkl', allow_pickle=True)
+        self.all_states = np.load(f'{dataset_path}/all_states_10Hz.pkl', allow_pickle=True)
         self.transform = transform
 
         # # read from zarr dataset
@@ -269,7 +260,7 @@ class PushTImageDataset(torch.utils.data.Dataset):
         }
 
         # save stats
-        with open(f'saved_weights/stats.pkl', 'wb') as f:
+        with open(f'saved_weights/stats_10Hz.pkl', 'wb') as f:
             pickle.dump(stats, f)
         
 

@@ -10,7 +10,7 @@ from network import ConditionalUnet1D
 from dataset_franka_real import PushTImageDataset
 import wandb
 import pdb
-from torchvision.transforms import Compose, Resize, ToTensor, Normalize, ToPILImage
+from torchvision.transforms import Compose, Resize, ToTensor, Normalize, ToPILImage, RandomCrop
 
 wandb.init(project="diffusion_experiments")
 
@@ -75,7 +75,7 @@ noise_scheduler = DDPMScheduler(
 )
 
 ################################################################## Dataloader ##################################################################
-transform = Compose([Resize((256,256))])
+transform = Compose([Resize((320,240)), RandomCrop((288,216))])
 
 
 dataset = PushTImageDataset(
@@ -104,6 +104,14 @@ dataloader = torch.utils.data.DataLoader(
 )
 
 ################################################################## Training ##################################################################
+
+############
+# Load pretrained weights
+ckpt_path = "saved_weights/nets_10Hz.ckpt"
+state_dict = torch.load(ckpt_path, map_location='cuda')
+nets.load_state_dict(state_dict)
+print('Pretrained weights loaded.')
+#############
 
 num_epochs = 1000
 
@@ -188,7 +196,6 @@ with tqdm(range(num_epochs), desc='Epoch') as tglobal:
                     naction, noise, timesteps)
                 
 
-
                 # predict the noise residual
                 noise_pred = noise_pred_net(
                     noisy_actions, timesteps, global_cond=obs_cond)
@@ -215,11 +222,7 @@ with tqdm(range(num_epochs), desc='Epoch') as tglobal:
                 tepoch.set_postfix(loss=loss_cpu)
 
             # save nets state dict ckpt every 1000 steps
-            torch.save(nets.state_dict(), 'saved_weights/nets.ckpt')
-
-
-
-
+            torch.save(nets.state_dict(), 'saved_weights/nets_10Hz_2.ckpt')
 
         tglobal.set_postfix(loss=np.mean(epoch_loss))
 

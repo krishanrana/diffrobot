@@ -23,7 +23,20 @@ import matplotlib.pyplot as plt
 import matplotlib
 import time
 from torchvision.transforms import Compose, Resize
+from torchvision.transforms.functional import crop
 from diffrobot.realsense.multi_camera_visualizer import MultiCameraVisualizer
+
+
+
+class FixedCropTransform:
+    def __init__(self, top, left, height, width):
+        self.top = top
+        self.left = left
+        self.height = height
+        self.width = width
+
+    def __call__(self, img):
+        return crop(img, self.top, self.left, self.height, self.width)
 
 
 
@@ -173,7 +186,8 @@ while True:
         nimage_top = nimage_top.permute(0,3,1,2)
         nimage_left = nimage_left.permute(0,3,1,2)
 
-        transform = Compose([Resize((256,256))])
+        transform = Compose([Resize((256,256)), FixedCropTransform(10, 10, 288, 216)])
+
         
         # shape (T,C,H,W) - (2,3,256,256)
         nimage_top = torch.stack([transform(img) for img in nimage_top])
