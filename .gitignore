@@ -1,5 +1,6 @@
 
-/data
+diffrobot/data/
+diffusion_policy/saved_weights/
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
