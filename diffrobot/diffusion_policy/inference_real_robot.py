@@ -51,7 +51,7 @@ action_dim = 2
 # parameters
 pred_horizon = 16
 obs_horizon = 2
-action_horizon = 16
+action_horizon = 8
 
 num_diffusion_iters = 100
 noise_scheduler = DDPMScheduler(
@@ -76,7 +76,7 @@ noise_pred_net = ConditionalUnet1D(
     global_cond_dim=obs_dim*obs_horizon
 )
 
-ckpt_path = "saved_weights/nets.ckpt"
+ckpt_path = "saved_weights/nets_10Hz.ckpt"
 state_dict = torch.load(ckpt_path, map_location='cuda')
 
 nets = nn.ModuleDict({
@@ -92,7 +92,7 @@ ema_nets.load_state_dict(state_dict)
 print('Pretrained weights loaded.')
 
 #read stats pkl
-stats_path = "saved_weights/stats.pkl"
+stats_path = "saved_weights/stats_10Hz.pkl"
 with open(stats_path, 'rb') as f:
     stats = pkl.load(f)
 
