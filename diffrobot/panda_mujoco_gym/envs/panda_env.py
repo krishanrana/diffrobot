@@ -4,6 +4,7 @@ from gymnasium.core import ObsType
 from gymnasium_robotics.envs.robot_env import MujocoRobotEnv
 from gymnasium_robotics.utils import rotations
 from typing import Optional, Any, SupportsFloat
+import pdb
 
 DEFAULT_CAMERA_CONFIG = {
     "distance": 2.5,
@@ -119,6 +120,8 @@ class FrankaEnv(MujocoRobotEnv):
         self.initial_object_height = self._utils.get_joint_qpos(self.model, self.data, "obj_joint")[2].copy()
 
     def step(self, action) -> tuple[ObsType, SupportsFloat, bool, bool, dict[str, Any]]:
+
+
         if np.array(action).shape != self.action_space.shape:
             raise ValueError("Action dimension mismatch")
 
@@ -196,32 +199,24 @@ class FrankaEnv(MujocoRobotEnv):
 
         if not self.block_gripper:
             obs = {
-                "observation": np.concatenate(
-                    [
-                        ee_position,
-                        ee_velocity,
-                        fingers_width,
-                        object_position,
-                        object_rotation,
-                        object_velp,
-                        object_velr,
-                    ]
-                ).copy(),
+                "ee_position": ee_position.copy(),
+                "ee_velocity":ee_velocity.copy(),
+                "fingers_width":fingers_width.copy(),
+                "object_position": object_position.copy(),
+                "object_rotation": object_rotation.copy(),
+                "object_velp": object_velp.copy(),
+                "object_velr": object_velr.copy(),
                 "achieved_goal": object_position.copy(),
-                "desired_goal": self.goal.copy(),
+                "desired_goal": self.goal.copy()
             }
         else:
             obs = {
-                "observation": np.concatenate(
-                    [
-                        ee_position,
-                        ee_velocity,
-                        object_position,
-                        object_rotation,
-                        object_velp,
-                        object_velr,
-                    ]
-                ).copy(),
+                "ee_position": ee_position.copy(),
+                "ee_velocity":ee_velocity.copy(),
+                "object_position": object_position.copy(),
+                "object_rotation": object_rotation.copy(),
+                "object_velp": object_velp.copy(),
+                "object_velr": object_velr.copy(),
                 "achieved_goal": object_position.copy(),
                 "desired_goal": self.goal.copy(),
             }
@@ -289,8 +284,8 @@ class FrankaEnv(MujocoRobotEnv):
         noise = self.np_random.uniform(self.goal_range_low, self.goal_range_high)
         # for the pick and place task
         if not self.block_gripper and self.goal_z_range > 0.0:
-            if self.np_random.random() < 0.3:
-                noise[2] = 0.0
+            #if self.np_random.random() < 0.3:
+            noise[2] = 0.0
         goal += noise
         return goal
 

@@ -1,26 +1,29 @@
 import gymnasium as gym
 import diffrobot.panda_mujoco_gym
-import pytest
 import pdb
+from diffrobot.panda_mujoco_gym.scripts.pick_place_controller import get_pick_and_place_control
 
 def run_env(env):
     obs = env.reset()[0]
     print(obs)
-    while True:
 
-        curr_pos = obs['achieved_goal']
-        goal_pos = obs['desired_goal']
+
+    while True:
 
         # Write a P controller to move the robot to the goal
 
         #diff = curr_pos - goal_pos
         #action = diff * 10
 
-        action = env.action_space.sample()
-        print(action)
+        action = get_pick_and_place_control(obs)
+
+        # action = env.action_space.sample()
+        # print(action)
+        action = action[0]
+        # action = [0.0, 0.0, 0.0, 1.0]
         obs, _, terminated, truncated, _ = env.step(action)
         env.render()
-        if terminated or truncated:
+        if terminated:
             env.reset()
     env.close()
     # check that it allows to be closed multiple times
