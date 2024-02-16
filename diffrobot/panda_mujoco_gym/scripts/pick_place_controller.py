@@ -31,12 +31,20 @@ def block_inside_grippers(obs, relative_grasp_position, block_position, atol=1e-
 
 def grippers_are_closed(obs, atol=1e-3):
     gripper_state = obs['fingers_width']
-    print(gripper_state)
     return abs(gripper_state[0] - 0.0389622) < atol
 
 def grippers_are_open(obs, atol=1e-3):
     gripper_state = obs['fingers_width']
     return abs(gripper_state[0] - 0.08) < atol
+
+def get_control_action(obs, gain=2.0):
+    action = get_pick_and_place_control(obs, gain=gain)[0]
+    pos_ctrl = action[:3]
+    pos_ctrl *= 0.1
+    pos_ctrl += obs['ee_position']
+    action[:3] = pos_ctrl
+    return action
+
 
 def get_pick_and_place_control(obs, relative_grasp_position=(0., 0., -0.02), workspace_height=0.1, atol=1e-3, gain=10):
     """
@@ -51,7 +59,6 @@ def get_pick_and_place_control(obs, relative_grasp_position=(0., 0., -0.02), wor
     gripper_position = obs['ee_position']
     block_position = obs['object_position']
     place_position = obs['desired_goal']
-    print(obs['fingers_width'])
     
     # If the block is already at the place position, do nothing except keep the gripper closed
     if np.sum(np.subtract(block_position, place_position)**2) < atol:
@@ -68,7 +75,7 @@ def get_pick_and_place_control(obs, relative_grasp_position=(0., 0., -0.02), wor
         if DEBUG:
             print("Move to above the place position")
 
-        if np.sum(np.subtract(block_position, target_position)**2) < atol:
+        if np.sum(np.subtract(block_position, target_position)**2) < atol*2:
             return np.array([0., 0., 0, 1.]), False
 
 
