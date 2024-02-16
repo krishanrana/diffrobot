@@ -33,7 +33,7 @@ class FrankaEnv(MujocoRobotEnv):
         goal_xy_range: float = 0.3,
         obj_xy_range: float = 0.3,
         goal_x_offset: float = 0.4,
-        goal_z_range: float = 0.2,
+        goal_z_range: float = 0.0,
         **kwargs,
     ):
         self.block_gripper = block_gripper
@@ -168,10 +168,12 @@ class FrankaEnv(MujocoRobotEnv):
         # control the gripper
         self.data.ctrl[-2:] = fingers_half_width
 
+        # pdb.set_trace()
+
         # control the end-effector with mocap body
-        pos_ctrl *= 0.05
-        pos_ctrl += self.get_ee_position().copy()
-        pos_ctrl[2] = np.max((0, pos_ctrl[2]))
+        # pos_ctrl *= 0.05
+        # pos_ctrl += self.get_ee_position().copy()
+        # pos_ctrl[2] = np.max((0, pos_ctrl[2]))
 
         self.set_mocap_pose(pos_ctrl, self.grasp_site_pose)
 
