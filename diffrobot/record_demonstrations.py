@@ -27,23 +27,19 @@ if __name__ == "__main__":
 
     t = Teleop()
     t.home_robot()
-    record_fps = 30
+    record_fps = 10
     cams = MultiRealsense(
         # resolution=(640, 480),
         record_fps=record_fps,
         serial_numbers=[
-            '317222071463', # gripper
-            '032522250135', # top
-            '035122250388', # side top
-            # '825312071857', 
-            # '036522071747', 
-            # '825312071857', 
+            'f1230727', # gripper
+            '035122250692' # front
+            # '032522250135', # top    
             # '035122250388', # side top
-            # '032522250135', # top
             ],
         enable_depth=False
     )
-    vis = MultiCameraVisualizer(cams, row=3, col=1)
+    vis = MultiCameraVisualizer(cams, row=2, col=1)
     cams.start()
     cams.set_exposure(exposure=100, gain=60)
     vis.start()
@@ -59,20 +55,20 @@ if __name__ == "__main__":
 
     idx = params.idx
 
-    cam_side = cams.cameras['035122250388']
-    cam_top = cams.cameras['032522250135']
+    cam_front = cams.cameras['f1230727']
+    cam_gripper = cams.cameras['035122250692']
     #marker_detector_top = ArucoDetector(cam_top, 0.039, aruco.DICT_4X4_50, 37, visualize=False)
     #marker_detector_side = ArucoDetector(cam_side, 0.039, aruco.DICT_4X4_50, 37, visualize=False)
 
     # Save camera intrinsics for cam_side
-    cam_side_intrinsics = cam_side.get_intrinsics()
-    cam_top_intrinsics = cam_top.get_intrinsics()
+    cam_front_intrinsics = cam_front.get_intrinsics()
+    cam_gripper_intrinsics = cam_gripper.get_intrinsics()
 
 
-    with open(f"data/{params.name}/cam_side_intrinsics.json", "w") as f:
-        json.dump(cam_side_intrinsics.tolist(), f, indent=4)
-    with open(f"data/{params.name}/cam_top_intrinsics.json", "w") as f:
-        json.dump(cam_top_intrinsics.tolist(), f, indent=4)
+    with open(f"data/{params.name}/cam_front_intrinsics.json", "w") as f:
+        json.dump(cam_front_intrinsics.tolist(), f, indent=4)
+    with open(f"data/{params.name}/cam_gripper_intrinsics.json", "w") as f:
+        json.dump(cam_gripper_intrinsics.tolist(), f, indent=4)
 
     while True:
 
@@ -94,16 +90,10 @@ if __name__ == "__main__":
                 sleep_for = max(desired_time - duration, 0)
                 time.sleep(sleep_for)
                 # print(f"Time: {time.time()-start} - Slept for {sleep_for} - Actual Freq: {1.0/(time.time()-start)} Hz - Reqeuired Freq: {record_fps} Hz")
-            
-            # make file
-            
+                        
             cams.stop_recording()
             with open(f"data/{params.name}/{idx}/state.json", "w") as f:
                  json.dump(state, f, indent=4)
-
-            # store as npy
-            #np.save(f"data/{params.name}/{idx}/state.npy", state)
-
 
             idx+=1
 
@@ -111,7 +101,7 @@ if __name__ == "__main__":
             print("Resetting...")
             state = []           
             while not t.record_data:
-                time.sleep(1/30.0)
+                time.sleep(1/record_fps)
             
 
                 # print(marker_pose_top)
