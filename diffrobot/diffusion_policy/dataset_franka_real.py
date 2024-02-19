@@ -250,6 +250,13 @@ class PushTImageDataset(torch.utils.data.Dataset):
             sequence_length=pred_horizon,
             dataset_path=dataset_path)
         
+        # shuffle indices
+        np.random.seed(0)
+        np.random.shuffle(indices)
+        
+        self.index_order = indices.copy()
+        
+        # split into train and val
         if self.phase == 'train':
             indices = indices[:int(0.9*len(indices))]
         elif self.phase == 'val':

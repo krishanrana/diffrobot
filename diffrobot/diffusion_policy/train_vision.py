@@ -96,6 +96,9 @@ val_dataset = PushTImageDataset(
     transform=transform
 )
 
+
+assert np.all(train_dataset.index_order == val_dataset.index_order)
+
 # save training data statistics (min, max) for each dim
 stats = train_dataset.stats
 # np.save('saved_weights/stats.npy', stats)
@@ -134,6 +137,8 @@ val_dataloader = torch.utils.data.DataLoader(
 # #############
 
 num_epochs = 500
+last_best_loss = 10000
+
 
 # Exponential Moving Average
 # accelerates training and improves stability
@@ -291,6 +296,12 @@ with tqdm(range(num_epochs), desc='Epoch') as tglobal:
                     val_loss.append(loss.item())
 
                 wandb.log({"val_loss": np.mean(val_loss)})
+
+                if np.mean(val_loss) < last_best_loss:
+                    torch.save(nets.state_dict(), 'saved_weights/nets_reacher_best.ckpt')
+                    last_best_loss = np.mean(val_loss)
+                    print('Saved best model!')
+
 
 
 
