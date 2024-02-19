@@ -32,7 +32,7 @@ def create_sample_indices(sequence_length:int,
     episodes = sorted(os.listdir(os.path.join(dataset_path, "episodes")), key=lambda x: int(x))
     for episode in episodes:
         # read the state.json file which consists of a list of dictionaries
-        state = json.load(open(os.path.join(dataset_path, "episodes", episode, "images_10/state_10Hz.json")))
+        state = json.load(open(os.path.join(dataset_path, "episodes", episode, "state.json")))
 
         # get the length of the episode
         episode_length = len(state)
@@ -52,26 +52,26 @@ def create_sample_indices(sequence_length:int,
 def sample_sequence_images(dataset_path: str, states: list, episode: int, start_idx: int, end_idx: int):
 
     #Paths to images
-    img_dir_top = os.path.join(dataset_path, "episodes", str(episode), "images_10", "top")
-    img_dir_left = os.path.join(dataset_path, "episodes", str(episode), "images_10", "left")
+    img_dir_front = os.path.join(dataset_path, "episodes", str(episode), "images", "front")
+    # img_dir_left = os.path.join(dataset_path, "episodes", str(ep isode), "images", "left")
 
     # Initialize lists to store slices
-    f_top = []
-    f_left = []
+    f_front = []
+    # f_left = []
 
     for idx in range(start_idx+1, end_idx+1):
-        img_top = read_image(f'{img_dir_top}/{idx}.png')
-        img_left = read_image(f'{img_dir_left}/{idx}.png')
+        img_front = read_image(f'{img_dir_front}/{idx}.png')
+        # img_left = read_image(f'{img_dir_left}/{idx}.png')
 
-        f_top.append(img_top)
-        f_left.append(img_left)
+        # f_top.append(img_top)
+        f_front.append(img_front)
 
-    f_top = torch.stack(f_top, dim=0)
-    f_left = torch.stack(f_left, dim=0)
+    # f_top = torch.stack(f_top, dim=0)
+    f_front = torch.stack(f_front, dim=0)
 
     data = {
-        'image_top': f_top,
-        'image_left': f_left,
+        # 'image_top': f_top,
+        'image_front': f_front,
         'robot_state': states[start_idx:end_idx],
         'action': states[start_idx+1:end_idx+1]
     }
@@ -163,19 +163,22 @@ def create_xy_state_dataset(dataset_path:str):
     episodes = sorted(os.listdir(os.path.join(dataset_path, "episodes")), key=lambda x: int(x))
     for episode in episodes:
         # read the state.json file which consists of a list of dictionaries
-        raw_data = json.load(open(os.path.join(dataset_path, "episodes", episode ,"images_10/state_10Hz.json")))
+        raw_data = json.load(open(os.path.join(dataset_path, "episodes", episode ,"state.json")))
         temp = []
         for idx in range(len(raw_data)):
-            pose = np.array(raw_data[idx])[:2,3]
+            pose = np.array(raw_data[idx]["X_BE"])[:2,3]
             temp.append(pose)
         
         state.append(temp)
 
     # save file as pickle
-    with open(f'{dataset_path}/all_states_10Hz.pkl', 'wb') as f:
+    with open(f'{dataset_path}/all_states.pkl', 'wb') as f:
         pickle.dump(state, f)
-
+    print("Done saving state data")
     return
+
+fpath = "/home/krishan/work/2024/datasets/franka_reacher"
+create_xy_state_dataset(fpath)
 
 
 def flatten_2d_lists(list_of_lists):
@@ -216,11 +219,13 @@ class PushTImageDataset(torch.utils.data.Dataset):
                  pred_horizon: int,
                  obs_horizon: int,
                  action_horizon: int,
+                 phase: str,
                  transform):
         
         self.dataset_path = dataset_path
-        self.all_states = np.load(f'{dataset_path}/all_states_10Hz.pkl', allow_pickle=True)
+        self.all_states = np.load(f'{dataset_path}/all_states.pkl', allow_pickle=True)
         self.transform = transform
+        self.phase = phase
 
         # # read from zarr dataset
         # dataset_root = zarr.open(dataset_path, 'r')
@@ -245,6 +250,19 @@ class PushTImageDataset(torch.utils.data.Dataset):
             sequence_length=pred_horizon,
             dataset_path=dataset_path)
         
+        # shuffle indices
+        np.random.seed(0)
+        np.random.shuffle(indices)
+        
+        self.index_order = indices.copy()
+        
+        # split into train and val
+        if self.phase == 'train':
+            indices = indices[:int(0.9*len(indices))]
+        elif self.phase == 'val':
+            indices = indices[int(0.9*len(indices)):]
+
+        
         # compute statistics and normalized data to [-1,1]
         stats = dict()
         # normalized_train_data = dict()
@@ -258,7 +276,7 @@ class PushTImageDataset(torch.utils.data.Dataset):
         }
 
         # save stats
-        with open(f'saved_weights/stats_10Hz.pkl', 'wb') as f:
+        with open(f'saved_weights/stats.pkl', 'wb') as f:
             pickle.dump(stats, f)
         
 
@@ -292,20 +310,20 @@ class PushTImageDataset(torch.utils.data.Dataset):
         # normalize data
         nsample['robot_state'] = normalize_data(nsample['robot_state'], self.stats['states'])
         nsample['action'] = normalize_data(nsample['action'], self.stats['actions'])
-        nsample['image_top'] = nsample['image_top'] / 255.0
-        nsample['image_left'] = nsample['image_left'] / 255.0
+        # nsample['image_top'] = nsample['image_top'] / 255.0
+        nsample['image_front'] = nsample['image_front'] / 255.0
 
 
         # discard unused observations
         # apply transform
 
 
-        nsample['image_top'] = nsample['image_top'][:self.obs_horizon,:]
-        nsample['image_left'] = nsample['image_left'][:self.obs_horizon,:]
+        # nsample['image_top'] = nsample['image_top'][:self.obs_horizon,:]
+        nsample['image_front'] = nsample['image_front'][:self.obs_horizon,:]
         nsample['robot_state'] = nsample['robot_state'][:self.obs_horizon,:]
 
-        nsample['image_top'] = torch.stack([self.transform(img) for img in nsample['image_top']])
-        nsample['image_left'] = torch.stack([self.transform(img) for img in nsample['image_left']])
+        # nsample['image_top'] = torch.stack([self.transform(img) for img in nsample['image_top']])
+        nsample['image_front'] = torch.stack([self.transform(img) for img in nsample['image_front']])
 
         return nsample
     
