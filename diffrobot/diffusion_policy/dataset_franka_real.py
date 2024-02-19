@@ -177,8 +177,8 @@ def create_xy_state_dataset(dataset_path:str):
     print("Done saving state data")
     return
 
-fpath = "/home/krishan/work/2024/datasets/franka_reacher"
-create_xy_state_dataset(fpath)
+# fpath = "/home/krishan/work/2024/datasets/franka_reacher"
+# create_xy_state_dataset(fpath)
 
 
 def flatten_2d_lists(list_of_lists):
