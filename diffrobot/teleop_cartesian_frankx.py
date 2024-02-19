@@ -111,7 +111,7 @@ def create_gello() -> DynamixelRobot:
 				real=True,
 				joint_ids=(1, 2, 3, 4, 5, 6, 7),
 				joint_offsets=(
-					5 * np.pi / 2,
+					1 * np.pi / 2,
 					2 * np.pi / 2,
 					4 * np.pi / 2,
 					2 * np.pi / 2,
