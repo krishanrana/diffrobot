@@ -45,14 +45,15 @@ vision_feature_dim = 512
 # agent_pos is 2 dimensional
 lowdim_obs_dim = 2
 # observation feature has 514 dims in total per step
-obs_dim = 2*(vision_feature_dim) + lowdim_obs_dim
+obs_dim = 1*(vision_feature_dim) + lowdim_obs_dim
 action_dim = 2
 
 # parameters
 pred_horizon = 16
 obs_horizon = 2
-action_horizon = 8
+action_horizon = 6
 
+# num_diffusion_iters = 100
 num_diffusion_iters = 100
 noise_scheduler = DDPMScheduler(
     num_train_timesteps=num_diffusion_iters,
@@ -66,22 +67,22 @@ noise_scheduler = DDPMScheduler(
 
 device = torch.device('cuda')
 
-vision_encoder_top = get_resnet('resnet18')
-vision_encoder_left = get_resnet('resnet18')
-vision_encoder_top = replace_bn_with_gn(vision_encoder_top)
-vision_encoder_left = replace_bn_with_gn(vision_encoder_left)
+# vision_encoder_top = get_resnet('resnet18')
+vision_encoder_front = get_resnet('resnet18')
+# vision_encoder_top = replace_bn_with_gn(vision_encoder_top)
+vision_encoder_front = replace_bn_with_gn(vision_encoder_front)
 
 noise_pred_net = ConditionalUnet1D(
     input_dim=action_dim,
     global_cond_dim=obs_dim*obs_horizon
 )
 
-ckpt_path = "saved_weights/nets_10Hz.ckpt"
+ckpt_path = "saved_weights/nets_reacher_best.ckpt"
 state_dict = torch.load(ckpt_path, map_location='cuda')
 
 nets = nn.ModuleDict({
-    'vision_encoder_top': vision_encoder_top,
-    'vision_encoder_left': vision_encoder_left,
+    # 'vision_encoder_top': vision_encoder_top,
+    'vision_encoder_front': vision_encoder_front,
     'noise_pred_net': noise_pred_net
 })
 
@@ -92,7 +93,7 @@ ema_nets.load_state_dict(state_dict)
 print('Pretrained weights loaded.')
 
 #read stats pkl
-stats_path = "saved_weights/stats_10Hz.pkl"
+stats_path = "saved_weights/stats.pkl"
 with open(stats_path, 'rb') as f:
     stats = pkl.load(f)
 
@@ -112,8 +113,8 @@ cams = MultiRealsense(
         # resolution=(640, 480),
         record_fps=record_fps,
         serial_numbers=[
-            '032522250135', # top
-            '035122250388', # side top
+            '035122250692', # front
+            # '035122250388', # side top
             ],
         enable_depth=False)
 
@@ -121,7 +122,7 @@ cams.start()
 cams.set_exposure(exposure=100, gain=60)
 time.sleep(1.0)
 
-vis = MultiCameraVisualizer(cams, row=3, col=1)
+vis = MultiCameraVisualizer(cams, row=2, col=1)
 vis.start()
 time.sleep(1.0)
 
@@ -145,8 +146,8 @@ def get_obs():
     # read images from realsense and scale down
     # read position of the robot ee
     # save as dict
-    return {'image_top': images[0]['color'],
-            'image_left': images[1]['color'],
+    return {'image_front': images[0]['color'],
+            # 'image_left': images[1]['color'],
             'agent_pos': pose[:2, 3]}
         
 # Discard first frames
@@ -168,45 +169,45 @@ while True:
     while not done:
         B = 1
         # stack the last obs_horizon number of observations
-        image_top = np.stack([x['image_top'] for x in obs_deque])
-        image_left = np.stack([x['image_left'] for x in obs_deque])
+        # image_top = np.stack([x['image_top'] for x in obs_deque])
+        image_front = np.stack([x['image_front'] for x in obs_deque])
         agent_poses = np.stack([x['agent_pos'] for x in obs_deque])
 
         # normalize observation
         nagent_poses = normalize_data(agent_poses, stats=stats['states'])
-        nimage_top = image_top / 255.0
-        nimage_left = image_left / 255.0
+        # nimage_top = image_top / 255.0
+        nimage_front = image_front / 255.0
 
         # device transfer
         nagent_poses = torch.from_numpy(nagent_poses).to(device, dtype=torch.float32)
-        nimage_top = torch.from_numpy(nimage_top).to(device, dtype=torch.float32)
-        nimage_left = torch.from_numpy(nimage_left).to(device, dtype=torch.float32)
+        # nimage_top = torch.from_numpy(nimage_top).to(device, dtype=torch.float32)
+        nimage_front = torch.from_numpy(nimage_front).to(device, dtype=torch.float32)
 
         # permute to (T,C,H,W)
-        nimage_top = nimage_top.permute(0,3,1,2)
-        nimage_left = nimage_left.permute(0,3,1,2)
+        # nimage_top = nimage_top.permute(0,3,1,2)
+        nimage_front = nimage_front.permute(0,3,1,2)
 
         transform = Compose([Resize((256,256)), FixedCropTransform(10, 10, 288, 216)])
 
         
         # shape (T,C,H,W) - (2,3,256,256)
-        nimage_top = torch.stack([transform(img) for img in nimage_top])
-        nimage_left = torch.stack([transform(img) for img in nimage_left])
+        # nimage_top = torch.stack([transform(img) for img in nimage_top])
+        nimage_front = torch.stack([transform(img) for img in nimage_front])
 
 
         # infer action
         with torch.no_grad():
             # get image features
             # shape (obs_horizon,D) - (2,512)
-            image_features_top = ema_nets['vision_encoder_top'](nimage_top)
-            image_features_left = ema_nets['vision_encoder_left'](nimage_left)
+            # image_features_top = ema_nets['vision_encoder_top'](nimage_top)
+            image_features_front = ema_nets['vision_encoder_front'](nimage_front)
 
             # shape (2, 1024)
-            image_features = torch.cat([image_features_top, image_features_left], dim=-1)
+            # image_features = torch.cat([image_features_top, image_features_left], dim=-1)
             # (2,512)
 
             # concat with low-dim observations
-            obs_features = torch.cat([image_features, nagent_poses], dim=-1)
+            obs_features = torch.cat([image_features_front, nagent_poses], dim=-1)
 
             # reshape observation to (B,obs_horizon*obs_dim)
             obs_cond = obs_features.unsqueeze(0).flatten(start_dim=1)
