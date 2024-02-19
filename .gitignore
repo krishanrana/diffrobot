@@ -1,4 +1,5 @@
 
+diffrobot/diffusion_policy/wandb/
 diffrobot/data/
 diffrobot/diffusion_policy/saved_weights/
 # Byte-compiled / optimized / DLL files
