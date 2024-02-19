@@ -49,6 +49,19 @@ def create_sample_indices(sequence_length:int,
     return indices
 
 
+
+def sample_sequence_states(dataset_path: str, states: list, goals: list, episode: int, start_idx: int, end_idx: int):
+
+    data = {
+        # 'image_top': f_top,
+        'goal': goals[episode],
+        'robot_state': states[start_idx:end_idx],
+        'action': states[start_idx+1:end_idx+1]
+    }
+
+    return data
+
+
 def sample_sequence_images(dataset_path: str, states: list, episode: int, start_idx: int, end_idx: int):
 
     #Paths to images
@@ -79,84 +92,6 @@ def sample_sequence_images(dataset_path: str, states: list, episode: int, start_
     return data
 
 
-
-def sample_sequence(dataset_path: str, states: list, episode: int, start_idx: int, end_idx: int):
-    
-    # Paths to the video files
-    vp_top = os.path.join(dataset_path, "episodes", str(episode), "video", "1.mp4")
-    vp_left = os.path.join(dataset_path, "episodes", str(episode), "video", "2.mp4")
-
-    # Initialize lists to store slices
-    f_top = []
-    f_left = []
-
-    # Open both video containers
-    container_top = av.open(vp_top)
-    container_left = av.open(vp_left)
-    
-    stream_top = container_top.streams.video[0]
-    stream_left = container_left.streams.video[0]
-
-    # Calculate the timestamp to seek to
-    time_base_top = stream_top.time_base
-    time_base_left = stream_left.time_base
-    fps_top = stream_top.average_rate
-    fps_left = stream_left.average_rate
-    timestamp_top = (start_idx / fps_top) / time_base_top
-    timestamp_left = (start_idx / fps_left) / time_base_left
-    
-    # Seek to the nearest keyframe before start_idx
-    container_top.seek(int(timestamp_top), stream=stream_top)
-    container_left.seek(int(timestamp_left), stream=stream_left)
-
-    frame_idx = start_idx  # Assume seeking gets us to the start_idx or slightly before
-    while True:
-        try:
-            frame_top = next(container_top.decode(stream_top))
-            frame_left = next(container_left.decode(stream_left))
-        except StopIteration:
-            break  # End of video
-        
-        if frame_idx >= end_idx:
-            break
-        
-        # Process top video frame
-        img_top = frame_top.to_image()
-        # img_top.save(f'top_frame_{frame_idx}.png')  # Save if needed
-        img_top = np.array(img_top)[:, :, :3]  # Convert to numpy array and select RGB
-
-        f_top.append(torch.from_numpy(img_top))
-        
-        # Process left video frame
-        img_left = frame_left.to_image()
-        # img_left.save(f'left_frame_{frame_idx}.png')  # Save if needed
-        img_left = np.array(img_left)[:, :, :3]  # Convert to numpy array and select RGB
-        f_left.append(torch.from_numpy(img_left))
-        
-        frame_idx += 1  # Increment frame index
-    
-    # Close containers
-    container_top.close()
-    container_left.close()
-
-    # Stack frames along a new dimension
-    f_top = torch.stack(f_top, dim=0)
-    f_left = torch.stack(f_left, dim=0)
-
-
-    data = {
-        'image_top': f_top,
-        'image_left': f_left,
-        'robot_state': states[start_idx:end_idx],
-        'action': states[start_idx+1:end_idx+1]
-    }
-
-    return data
-
-
-# sample_sequence("/home/krishan/work/2024/datasets/franka_pusht", [], 0, 5, 21)
-
-
 def create_xy_state_dataset(dataset_path:str):
     state = []
    # sort numerically the episodes based on folder names
@@ -177,8 +112,22 @@ def create_xy_state_dataset(dataset_path:str):
     print("Done saving state data")
     return
 
-# fpath = "/home/krishan/work/2024/datasets/franka_reacher"
-# create_xy_state_dataset(fpath)
+def create_goal_dataset(dataset_path:str):
+    goals = []
+   # sort numerically the episodes based on folder names
+    episodes = sorted(os.listdir(os.path.join(dataset_path, "episodes")), key=lambda x: int(x))
+    for episode in episodes:
+        # read the state.json file which consists of a list of dictionaries
+        goal = np.array(json.load(open(os.path.join(dataset_path, "episodes", episode ,"marker_position.json"))))
+        goals.append(goal)
+
+    # save file as pickle
+    with open(f'{dataset_path}/all_goals.pkl', 'wb') as f:
+        pickle.dump(goals, f)
+    print("Done saving goal data")
+    return
+
+
 
 
 def flatten_2d_lists(list_of_lists):
@@ -267,7 +216,6 @@ class PushTImageDataset(torch.utils.data.Dataset):
         stats = dict()
         # normalized_train_data = dict()
 
-        
         stats["states"] = get_data_stats(self.all_states)
         stats["actions"] = get_data_stats(self.all_states)
         stats["images"] = {
@@ -324,6 +272,95 @@ class PushTImageDataset(torch.utils.data.Dataset):
 
         # nsample['image_top'] = torch.stack([self.transform(img) for img in nsample['image_top']])
         nsample['image_front'] = torch.stack([self.transform(img) for img in nsample['image_front']])
+
+        return nsample
+
+
+
+
+
+
+
+class PushTStateDataset(torch.utils.data.Dataset):
+    def __init__(self,
+                 dataset_path: str,
+                 pred_horizon: int,
+                 obs_horizon: int,
+                 action_horizon: int,
+                 phase: str):
+        
+        self.dataset_path = dataset_path
+        self.all_states = np.load(f'{dataset_path}/all_states.pkl', allow_pickle=True)
+        self.all_goals = np.load(f'{dataset_path}/all_goals.pkl', allow_pickle=True)
+        self.phase = phase
+
+        indices = create_sample_indices(
+            sequence_length=pred_horizon,
+            dataset_path=dataset_path)
+        
+        # shuffle indices
+        np.random.seed(0)
+        np.random.shuffle(indices)
+        
+        self.index_order = indices.copy()
+        
+        # split into train and val
+        if self.phase == 'train':
+            indices = indices[:int(0.9*len(indices))]
+        elif self.phase == 'val':
+            indices = indices[int(0.9*len(indices)):]
+
+        
+        # compute statistics and normalized data to [-1,1]
+        stats = dict()
+        # normalized_train_data = dict()
+        stats["goals"] = get_data_stats(self.all_goals)
+        stats["states"] = get_data_stats(self.all_states)
+        stats["actions"] = get_data_stats(self.all_states)
+        stats["images"] = {
+            'min': 0,
+            'max': 255
+        }
+
+        # save stats
+        with open(f'saved_weights/stats.pkl', 'wb') as f:
+            pickle.dump(stats, f)
+        
+
+        # normalized_train_data[key] = normalize_data(data, stats[key])
+
+        # images are already normalized
+        # normalized_train_data['image'] = train_image_data
+
+        self.indices = indices
+        self.stats = stats
+        # self.normalized_train_data = normalized_train_data
+        self.pred_horizon = pred_horizon
+        self.action_horizon = action_horizon
+        self.obs_horizon = obs_horizon
+
+    def __len__(self):
+        return len(self.indices)
+
+    def __getitem__(self, idx):
+        # get the start/end indices for this datapoint
+        episode, sample_start_idx, sample_end_idx = self.indices[idx]
+
+        # get nomralized data using these indices
+        nsample = sample_sequence_states(
+            dataset_path=self.dataset_path,
+            states=self.all_states[episode],
+            episode=episode,
+            goals=self.all_goals,
+            start_idx=sample_start_idx,
+            end_idx=sample_end_idx)
+        
+        # normalize data
+        nsample['robot_state'] = normalize_data(nsample['robot_state'], self.stats['states'])
+
+        nsample['action'] = normalize_data(nsample['action'], self.stats['actions'])
+        nsample['goal'] = normalize_data(nsample['goal'], self.stats['goals'])
+        nsample['robot_state'] = nsample['robot_state'][:self.obs_horizon,:]
 
         return nsample
     
