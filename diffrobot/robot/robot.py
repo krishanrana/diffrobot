@@ -1,8 +1,10 @@
-from frankx import JointMotion, Kinematics, Affine, LinearMotion
+from frankx import JointMotion, Kinematics, Affine, LinearMotion, PathMotion
 from frankx import Robot as Panda, WaypointMotion, Waypoint
 import numpy as np
 from scipy.spatial.transform.rotation import Rotation as R
 from panda_py._core import ik
+import reactivex as rx
+from reactivex import operators as ops
 
 def to_affine(pos, orn):
     """
@@ -69,18 +71,26 @@ class Robot:
         self.frankx.recover_from_errors()
         self.frankx.set_dynamic_rel(0.1)
         self.home_joints = [0.0, -np.pi/4, 0.0, -3*np.pi/4, 0.0, np.pi/2, np.pi/4]
+        self.motion = None
+
+        # frequency = 10
+        # self.pose_stream = rx.interval(1.0/frequency, scheduler=rx.scheduler.NewThreadScheduler()) \
+        #     .pipe(ops.map(lambda _: self.get_tcp_pose())) \
+		# 	.pipe(ops.share())
     
     def recover_from_errors(self):
         self.frankx.recover_from_errors()
     
-    def move_to_waypoints(self, waypoints):
-        m = WaypointMotion([
-            Waypoint(Affine(0.2, -0.4, 0.2, 0.3, 0.2, 0.1)),
-            # The following waypoint is relative to the prior one
-            Waypoint(Affine(0.0, 0.1, 0.0), Waypoint.ReferenceType.Relative)
-            ])
-        self.frankx.move(m)
-
+    def waypoints(self, affines: list[Affine]):
+        waypoints = [Waypoint(affine) for affine in affines]
+        self.motion = WaypointMotion(waypoints)
+        self.frankx.move(self.motion)
+        self.motion = None
+    
+    def path(self, waypoints: list[Affine], blend: float = 0.3):
+        self.motion = PathMotion(waypoints, blend_max_distance=blend)
+        self.frankx.move(self.motion)
+        self.motion = None
     
     def move_to_joints(self, q):
         self.frankx.move(JointMotion(q))
@@ -112,10 +122,15 @@ class Robot:
         return s.q
     
     def get_tcp_pose(self):
-        pose = self.frankx.current_pose()
-        pos, orn = np.array(pose.translation()), np.array(pose.quaternion())
-        orn = np.array([orn[1], orn[2], orn[3], orn[0]]) # xyzw
-        return pos_orn_to_matrix(pos, orn)
+        if self.motion == None:
+            pose = self.frankx.current_pose()
+            pos, orn = np.array(pose.translation()), np.array(pose.quaternion())
+            orn = np.array([orn[1], orn[2], orn[3], orn[0]]) # xyzw
+            return pos_orn_to_matrix(pos, orn)
+        else:
+            pose = np.array(self.motion.get_robot_state().O_T_EE).reshape(4, 4).T
+            return pose
+
     
     def has_errors(self):
         return self.frankx.has_errors()
