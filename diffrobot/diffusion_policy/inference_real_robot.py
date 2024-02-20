@@ -26,7 +26,8 @@ from torchvision.transforms import Compose, Resize
 from torchvision.transforms.functional import crop
 from diffrobot.realsense.multi_camera_visualizer import MultiCameraVisualizer
 
-
+import reactivex as rx
+from reactivex import operators as ops
 
 class FixedCropTransform:
     def __init__(self, top, left, height, width):
@@ -152,15 +153,23 @@ def get_obs():
         
 # Discard first frames
 get_obs()
-    
+
+obs_deque = collections.deque(maxlen=obs_horizon)
+obs_stream = rx.interval(1.0/10.0, scheduler=rx.scheduler.NewThreadScheduler()) \
+    .pipe(ops.map(lambda _: get_obs())) \
+    .pipe(ops.share()) \
+    .subscribe(lambda x: obs_deque.append(x))
+
 
 while True:
     # get first observation
-    obs = get_obs()
+    # clear the queue
+    obs_deque.clear()
+    # obs = get_obs()
 
     # keep a queue of last 2 steps of observations
-    obs_deque = collections.deque(
-        [obs] * obs_horizon, maxlen=obs_horizon)
+    # obs_deque = collections.deque(
+    #     [obs] * obs_horizon, maxlen=obs_horizon)
     # save visualization and rewards
     rewards = list()
     done = False

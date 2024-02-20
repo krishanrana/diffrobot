@@ -23,20 +23,21 @@ trans = pose[:3, 3]
 z_height = trans[2]
 orien = panda.get_orientation()
 
-# move in a straight line in the x direction
-waypoint_1 = to_affine(trans, orien)
-trans[0] += 0.01
-waypoint_2 = to_affine(trans, orien)
-trans[0] += 0.01
-waypoint_3 = to_affine(trans, orien)
-trans[0] += 0.01
-waypoint_4 = to_affine(trans, orien)
 
-motion_down = PathMotion([
+# move in a straight line in the x direction
+waypoint_1 = to_affine([0.0, -0.4, 0.2], orien)
+waypoint_2 = to_affine([0.2, -0.3, 0.2], orien)
+waypoint_3 = to_affine([0.4, -0.4, 0.2], orien)
+
+motion = PathMotion([
         waypoint_1, 
         waypoint_2, 
         waypoint_3, 
-        waypoint_4
-    ], blend_max_distance=0.05)
+    ], blend_max_distance=0.4)
 
-panda.frankx.move(motion_down)
+panda.frankx.move_async(motion)
+import time
+while True:
+    q = motion.get_robot_state().q
+    print(q)
+    time.sleep(0.2)
