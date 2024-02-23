@@ -29,6 +29,7 @@ from diffrobot.realsense.multi_camera_visualizer import MultiCameraVisualizer
 import reactivex as rx
 from reactivex import operators as ops
 
+
 class FixedCropTransform:
     def __init__(self, top, left, height, width):
         self.top = top

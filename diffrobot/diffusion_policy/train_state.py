@@ -110,7 +110,7 @@ val_dataloader = torch.utils.data.DataLoader(
 # print('Pretrained weights loaded.')
 # #############
 
-num_epochs = 500
+num_epochs = 5000
 last_best_loss = 10000
 
 
