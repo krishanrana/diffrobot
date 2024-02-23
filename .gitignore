@@ -1,7 +1,7 @@
 
 diffrobot/diffusion_policy/wandb/
 diffrobot/data/
-diffrobot/diffusion_policy/saved_weights/
+diffrobot/diffusion_policy/runs/
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
