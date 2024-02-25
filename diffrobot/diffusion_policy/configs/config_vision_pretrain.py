@@ -19,7 +19,7 @@ num_diffusion_iters = 100
 
 batch_size = 128
 num_workers = 11
-num_epochs = 3000
+num_epochs = 3500
 
 lr = 1e-4
 lr_scheduler_profile = 'cosine'
