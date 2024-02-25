@@ -74,7 +74,7 @@ class DiffusionPolicy():
         
         if mode == 'train':
 
-            wandb.init(project="diffusion_experiments")
+            wandb.init(project="diffusion_policy_runs")
             run_name = wandb.run.name
 
             if finetune is True:
