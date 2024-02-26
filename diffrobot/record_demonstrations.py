@@ -94,6 +94,7 @@ if __name__ == "__main__":
             cams.stop_recording()
             with open(f"data/{params.name}/{idx}/state.json", "w") as f:
                  json.dump(state, f, indent=4)
+                 
 
             idx+=1
 

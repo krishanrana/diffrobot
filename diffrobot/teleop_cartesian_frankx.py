@@ -67,7 +67,7 @@ class Teleop:
 			gello_q = self.gello.get_joint_state()
 			pose = panda_py.fk(gello_q[:7])
 			trans = pose[:3, 3]
-			trans[2] = z_height
+			# trans[2] = z_height
 			self.motion.set_next_waypoint(Waypoint(to_affine(trans, orien)))
 			time.sleep(1/30.0)
 		self.stop_requested = False
@@ -111,7 +111,7 @@ def create_gello() -> DynamixelRobot:
 				real=True,
 				joint_ids=(1, 2, 3, 4, 5, 6, 7),
 				joint_offsets=(
-					1 * np.pi / 2,
+					5 * np.pi / 2,
 					2 * np.pi / 2,
 					4 * np.pi / 2,
 					2 * np.pi / 2,

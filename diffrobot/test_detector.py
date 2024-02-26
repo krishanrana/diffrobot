@@ -6,6 +6,6 @@ sh = SharedMemoryManager()
 sh.start()
 cam = SingleRealsense(sh, "035122250692")
 cam.start()
-marker_detector = ArucoDetector(cam, 0.05, aruco.DICT_4X4_50, 8, visualize=False)
+marker_detector = ArucoDetector(cam, 0.05, aruco.DICT_4X4_50, 8, visualize=True)
 while True:
     print(marker_detector.estimate_pose())
