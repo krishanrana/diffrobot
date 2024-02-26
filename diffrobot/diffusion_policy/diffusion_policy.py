@@ -147,12 +147,11 @@ class DiffusionPolicy():
         if mode == 'infer':
             self.load_weights(saved_run_name)
             stats_path = os.path.join("runs", saved_run_name, 'stats.npy')
-            with open(stats_path, 'rb') as f:
-                self.stats = pkl.load(f)
-
+            self.stats = np.load(stats_path, allow_pickle=True).item()
             if policy_type == 'vision':
                 self.transform = Compose([Resize((self.params.im_width, self.params.im_height)), FixedCropTransform(10, 10, 288, 216)])
 
+            print('Inference Mode.')
                     
     def load_weights(self, saved_run_name, load_best=True):
         self.ema_nets = copy.deepcopy(self.nets)
@@ -312,25 +311,31 @@ class DiffusionPolicy():
         
         return obs_cond
     
-
     
     def process_inference_vision(self, obs_deque):
         image_front = np.stack([x['image_front'] for x in obs_deque])
+        image_hand = np.stack([x['image_hand'] for x in obs_deque])
         agent_poses = np.stack([x['agent_pos'] for x in obs_deque])
 
         nagent_poses = normalize_data(agent_poses, stats=self.stats['states'])
         nimage_front = image_front / 255.0
+        nimage_hand = image_hand / 255.0
 
         nagent_poses = torch.from_numpy(nagent_poses).to(self.device, dtype=torch.float32)
         nimage_front = torch.from_numpy(nimage_front).to(self.device, dtype=torch.float32)
+        nimage_hand = torch.from_numpy(nimage_hand).to(self.device, dtype=torch.float32)
 
         nimage_front = nimage_front.permute(0,3,1,2)
         nimage_front = torch.stack([self.transform(img) for img in nimage_front])
 
+        nimage_hand = nimage_hand.permute(0,3,1,2)
+        nimage_hand = torch.stack([self.transform(img) for img in nimage_hand])
+
         image_features_front = self.ema_nets['vision_encoder_front'](nimage_front)
+        image_features_hand = self.ema_nets['vision_encoder_hand'](nimage_hand)
 
-        obs_features = torch.cat([image_features_front, nagent_poses], dim=-1)
-
+        image_features = torch.cat([image_features_hand, image_features_front], dim=-1)
+        obs_features = torch.cat([image_features, nagent_poses], dim=-1)
         obs_cond = obs_features.unsqueeze(0).flatten(start_dim=1)
         
         return obs_cond
