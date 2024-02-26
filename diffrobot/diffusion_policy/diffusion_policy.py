@@ -92,9 +92,11 @@ class DiffusionPolicy():
 
             self.last_best_loss = 10000
 
-            # get transform values from self.params yaml
-            self.transform = Compose([Resize((self.params.im_height, self.params.im_width)), 
-                                      RandomCrop((self.params.crop_height, self.params.crop_width))])
+
+            if policy_type == 'vision':
+                # get transform values from self.params yaml
+                self.transform = Compose([Resize((self.params.im_height, self.params.im_width)), 
+                                        RandomCrop((self.params.crop_height, self.params.crop_width))])
 
             DatasetClass = PushTImageDataset if policy_type == 'vision' else PushTStateDataset
             
@@ -390,8 +392,8 @@ class DiffusionPolicy():
 
 if __name__ == '__main__':
     policy = DiffusionPolicy(mode='train', 
-                             policy_type='vision', 
-                             config_file='config_vision_pretrain', 
+                             policy_type='state', 
+                             config_file='config_state_pretrain', 
                              finetune=False, 
                              saved_run_name=None)
 
