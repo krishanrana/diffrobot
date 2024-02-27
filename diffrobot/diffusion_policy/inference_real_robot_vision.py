@@ -76,9 +76,10 @@ orien = panda.get_orientation()
 def get_obs():
     images = cams.get()
     pose = panda.get_tcp_pose()
-    # read images from realsense and scale down
-    # read position of the robot ee
-    # save as dict
+    # resize images
+    images[0]['color'] = cv2.resize(images[0]['color'], (320, 180))
+    images[1]['color'] = cv2.resize(images[1]['color'], (320, 180))
+
     return {'image_front': images[0]['color'],
             'image_hand': images[1]['color'],
             'agent_pos': pose[:3, 3]}

@@ -4,7 +4,7 @@ obs_dim =  3
 action_dim = 3
 pred_horizon = 16
 obs_horizon = 2
-action_horizon = 8
+action_horizon = 16
 global_cond_dim = (obs_dim*obs_horizon) + 3
 
 num_diffusion_iters = 100

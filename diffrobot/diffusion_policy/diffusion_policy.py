@@ -308,9 +308,8 @@ class DiffusionPolicy():
         nagent_poses = torch.from_numpy(nagent_poses).to(self.device, dtype=torch.float32)
         ngoal = torch.from_numpy(ngoal).to(self.device, dtype=torch.float32)
 
-        obs_cond = nagent_poses.flatten(start_dim=1)
-        obs_cond = torch.cat([ngoal.unsqueeze(dim=0), obs_cond], dim=-1)
-        
+        obs_cond = nagent_poses.flatten(start_dim=0)
+        obs_cond = torch.unsqueeze(torch.cat([ngoal, obs_cond], dim=-1), dim=0)
         return obs_cond
     
     
