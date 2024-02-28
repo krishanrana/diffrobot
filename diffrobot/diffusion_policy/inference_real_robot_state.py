@@ -12,7 +12,7 @@ from diffusers.optimization import get_scheduler
 from tqdm.auto import tqdm
 from diffrobot.diffusion_policy.vision_encoder import get_resnet, replace_bn_with_gn
 from diffrobot.diffusion_policy.network import ConditionalUnet1D
-from diffrobot.diffusion_policy.dataset_franka_real import normalize_data, unnormalize_data
+from diffrobot.diffusion_policy.utils.dataset_utils import normalize_data, unnormalize_data
 # import wandb
 import os
 import collections
