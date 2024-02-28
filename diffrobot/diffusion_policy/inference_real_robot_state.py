@@ -129,23 +129,24 @@ while True:
             points.append(tp)
         
         points = np.array(points)
-        # dists = np.linalg.norm(points[1:] - points[:-1], axis=1)
+        dists = np.linalg.norm(points[1:] - points[:-1], axis=1)
         # # check if last point is clsoe to the first point
-        # too_close = np.linalg.norm(points[0] - points[-1]) < 0.005
-        # if too_close:
-        #     points = points[:-1]
-        # else:
-        #     points = points[np.where(dists > 0.005)]
+        #threshold = 0.005
+        #too_close = np.linalg.norm(points[0] - points[-1]) < threshold
+        #if too_close:
+        #    points = points[:-1]
+        #else:
+        #    points = points[np.where(dists > threshold)]
 
         waypoints = []
         for point in points:
             waypoints.append(to_affine(point, orien))
 
         panda.recover_from_errors()
-        # if len(waypoints) > 2:
-        #     print("Waypoints are far. Using path motion")
-        #     panda.path(waypoints, blend=0.8)
-        # elif len(waypoints) >= 1:
-        #     print("Waypoints are close. Using waypoint motion")
-        panda.waypoints(waypoints)
+        #if len(waypoints) > 2:
+        #    print("Waypoints are far. Using path motion")
+        #    panda.path(waypoints, blend=1.2)
+        #elif len(waypoints) >= 1:
+        #    print("Waypoints are close. Using waypoint motion")
+        panda.waypoints(waypoints[-1:])
 
