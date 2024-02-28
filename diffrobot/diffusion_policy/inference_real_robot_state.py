@@ -42,7 +42,7 @@ policy = DiffusionPolicy(mode='infer',
                         policy_type='state', 
                         config_file='config_state_pretrain', 
                         finetune=False, 
-                        saved_run_name='distinctive-star-4_state')
+                        saved_run_name='logical-thunder-6_state')
 
 
 # Setup cameras
@@ -76,16 +76,14 @@ def get_marker():
     if res is None:
         return None
     else:
-        return res[:3, 3]
+        return res
     
 def get_obs():
     # print("Getting observation")
     pose = panda.get_tcp_pose()
     # goal = marker_detector.estimate_pose()
-    return pose[:3, 3]
+    return pose
 
-    return {'goal': goal[:3, 3],
-            'agent_pos': pose[:3, 3]}
 
 marker_stream = rx.interval(1.0/10.0, scheduler=rx.scheduler.NewThreadScheduler()) \
     .pipe(ops.map(lambda _: get_marker())) \

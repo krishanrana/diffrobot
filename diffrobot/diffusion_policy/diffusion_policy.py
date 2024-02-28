@@ -37,6 +37,12 @@ class DiffusionPolicy():
         if self.params.use_object_centric:
             print('Using object centric frame.')
 
+            with open(f'{self.params.dataset_path}/cameras.yaml', 'r') as stream:
+                cameras = yaml.safe_load(stream)
+
+            self.X_BC = np.array(cameras['side']['X_BC'])
+
+
         # create network object
         self.noise_pred_net = ConditionalUnet1D(
                         input_dim=self.params.action_dim,
@@ -310,15 +316,31 @@ class DiffusionPolicy():
 
 
     def process_inference_state(self, obs_deque):
-        agent_poses = np.stack([x['agent_pos'] for x in obs_deque])
-        goal = obs_deque[-1]['goal']
+
+        if self.params.use_object_centric:
+            # self.X_BC
+            X_CO = obs_deque[0]['goal']
+            # Get X_OE
+            X_BC = self.X_BC
+            X_BO = np.dot(X_BC, X_CO)
+            X_OE = [np.dot(np.linalg.inv(X_BO), X_BE['agent_pos'])[:3,3] for X_BE in obs_deque]
+            agent_poses = np.stack(X_OE)
+        else:
+            agent_poses = np.stack([x['agent_pos'][:3,3] for x in obs_deque])
+            goal = obs_deque[-1]['goal'][:3,3]
+
         nagent_poses = normalize_data(agent_poses, stats=self.stats['states'])
         ngoal = normalize_data(goal, stats=self.stats['goals'])
         nagent_poses = torch.from_numpy(nagent_poses).to(self.device, dtype=torch.float32)
         ngoal = torch.from_numpy(ngoal).to(self.device, dtype=torch.float32)
 
         obs_cond = nagent_poses.flatten(start_dim=0)
-        obs_cond = torch.unsqueeze(torch.cat([ngoal, obs_cond], dim=-1), dim=0)
+
+        if self.params.use_object_centric:
+            obs_cond = torch.unsqueeze(obs_cond, dim=0)
+        else:
+            obs_cond = torch.unsqueeze(torch.cat([ngoal, obs_cond], dim=-1), dim=0)
+
         return obs_cond
     
     
@@ -393,6 +415,16 @@ class DiffusionPolicy():
         start = self.params.obs_horizon - 1
         end = start + self.params.action_horizon
         action = action_pred[start:end,:]
+
+
+        if self.params.use_object_centric:
+            self.X_BC
+            X_CO = obs_deque[0]['goal']
+            # The action is a series of points in the object frame
+            # Convert each one to a [x,y,z] point in robot frame
+            X_BO = np.dot(self.X_BC, X_CO)
+            X_BE = [np.dot(X_BO, a.T).T for a in action]
+            action = X_BE
 
         return action
 
