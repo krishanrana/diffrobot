@@ -4,8 +4,8 @@ obs_dim =  3
 action_dim = 3
 pred_horizon = 16
 obs_horizon = 2
-action_horizon = 16
-global_cond_dim = (obs_dim*obs_horizon) + 3
+action_horizon = 8
+global_cond_dim = (obs_dim*obs_horizon)
 
 num_diffusion_iters = 100
 
@@ -17,5 +17,7 @@ lr = 1e-4
 lr_scheduler_profile = 'cosine'
 weight_decay = 1e-6
 num_warmup_steps = 500
+
+use_object_centric = True
 
 dataset_path = "/home/krishan/work/2024/datasets/franka_3D_reacher"

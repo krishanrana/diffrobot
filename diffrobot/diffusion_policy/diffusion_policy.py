@@ -7,11 +7,12 @@ from diffusers.optimization import get_scheduler
 from tqdm.auto import tqdm
 from vision_encoder import get_resnet, replace_bn_with_gn
 from network import ConditionalUnet1D
-from dataset_franka_real import PushTImageDataset, PushTStateDataset
+from diffrobot.diffusion_policy.datasets.vision_dataset import DiffusionImageDataset
+from diffrobot.diffusion_policy.datasets.state_dataset import DiffusionStateDataset
 import wandb
 import pdb
 from torchvision.transforms import Compose, Resize, RandomCrop
-from diffrobot.diffusion_policy.dataset_franka_real import normalize_data, unnormalize_data
+from diffrobot.diffusion_policy.utils.dataset_utils import normalize_data, unnormalize_data
 import yaml
 import copy
 import os
@@ -32,6 +33,9 @@ class DiffusionPolicy():
         self.params = get_config(config_file)
         self.policy_type = policy_type
         self.mode = mode
+
+        if self.params.use_object_centric:
+            print('Using object centric frame.')
 
         # create network object
         self.noise_pred_net = ConditionalUnet1D(
@@ -98,15 +102,18 @@ class DiffusionPolicy():
                 self.transform = Compose([Resize((self.params.im_height, self.params.im_width)), 
                                         RandomCrop((self.params.crop_height, self.params.crop_width))])
 
-            DatasetClass = PushTImageDataset if policy_type == 'vision' else PushTStateDataset
+            # DatasetClass = PushTImageDataset if policy_type == 'vision' else PushTStateDataset
+            DatasetClass = DiffusionImageDataset if policy_type == 'vision' else DiffusionStateDataset
             
             dataset_params = {"dataset_path": self.params.dataset_path,
                             "pred_horizon": self.params.pred_horizon,
                             "obs_horizon": self.params.obs_horizon,
-                            "action_horizon": self.params.action_horizon}
+                            "action_horizon": self.params.action_horizon,
+                            "use_object_centric": self.params.use_object_centric}
             
             self.train_dataset = DatasetClass(phase='train', **dataset_params, 
                                               transform=self.transform if policy_type == 'vision' else None)
+            
             self.val_dataset = DatasetClass(phase='val', **dataset_params, 
                                             transform=self.transform if policy_type == 'vision' else None)
 
@@ -181,7 +188,9 @@ class DiffusionPolicy():
         naction = nbatch['action'].to(self.device, dtype=torch.float32)
 
         obs_cond = nagent_pos.flatten(start_dim=1)
-        obs_cond = torch.cat([ngoal, obs_cond], dim=-1)
+        # obs_cond = torch.cat([ngoal, obs_cond], dim=-1)
+        # TODO: WIP removing goal to test object centric state
+        obs_cond = torch.cat([obs_cond], dim=-1)
         
         return obs_cond, naction
     

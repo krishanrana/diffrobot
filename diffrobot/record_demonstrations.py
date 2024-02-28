@@ -55,8 +55,8 @@ if __name__ == "__main__":
 
     idx = params.idx
 
-    cam_front = cams.cameras['f1230727']
-    cam_gripper = cams.cameras['035122250692']
+    cam_gripper = cams.cameras['f1230727']
+    cam_front = cams.cameras['035122250692']
     #marker_detector_top = ArucoDetector(cam_top, 0.039, aruco.DICT_4X4_50, 37, visualize=False)
     #marker_detector_side = ArucoDetector(cam_side, 0.039, aruco.DICT_4X4_50, 37, visualize=False)
 
