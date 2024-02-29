@@ -37,7 +37,7 @@ class DiffusionPolicy():
         if self.params.use_object_centric:
             print('Using object centric frame.')
 
-            with open(f'{self.params.dataset_path}/cameras.yaml', 'r') as stream:
+            with open(f'../calibration_data/cameras.yaml', 'r') as stream:
                 cameras = yaml.safe_load(stream)
 
             self.X_BC = np.array(cameras['side']['X_BC'])
@@ -325,6 +325,7 @@ class DiffusionPolicy():
             X_BO = np.dot(X_BC, X_CO)
             X_OE = [np.dot(np.linalg.inv(X_BO), X_BE['agent_pos'])[:3,3] for X_BE in obs_deque]
             agent_poses = np.stack(X_OE)
+            goal = obs_deque[-1]['goal'][:3,3]
         else:
             agent_poses = np.stack([x['agent_pos'][:3,3] for x in obs_deque])
             goal = obs_deque[-1]['goal'][:3,3]
@@ -423,7 +424,9 @@ class DiffusionPolicy():
             # The action is a series of points in the object frame
             # Convert each one to a [x,y,z] point in robot frame
             X_BO = np.dot(self.X_BC, X_CO)
-            X_BE = [np.dot(X_BO, a.T).T for a in action]
+
+            X_BE = [np.dot(X_BO, np.concatenate([a, np.array([1])])).T for a in action]
+            
             action = X_BE
 
         return action

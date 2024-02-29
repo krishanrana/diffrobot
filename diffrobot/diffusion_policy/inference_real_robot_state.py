@@ -38,11 +38,15 @@ from diffrobot.diffusion_policy.diffusion_policy import DiffusionPolicy
 # empty cache
 torch.cuda.empty_cache()
 
+saved_run_name = 'logical-thunder-6_state'
+# saved_run_name = 'distinctive-star-4_state'
+
+
 policy = DiffusionPolicy(mode='infer', 
                         policy_type='state', 
                         config_file='config_state_pretrain', 
                         finetune=False, 
-                        saved_run_name='logical-thunder-6_state')
+                        saved_run_name=saved_run_name)
 
 
 # Setup cameras
