@@ -2,6 +2,7 @@ import math
 import torch
 import torch.nn as nn
 from typing import Union
+import pdb
 
 
 #@markdown ### **Network**
@@ -22,6 +23,8 @@ class SinusoidalPosEmb(nn.Module):
     def __init__(self, dim):
         super().__init__()
         self.dim = dim
+        self.dummy_param = nn.Parameter(torch.empty(0))
+
 
     def forward(self, x):
         device = x.device
@@ -30,6 +33,8 @@ class SinusoidalPosEmb(nn.Module):
         emb = torch.exp(torch.arange(half_dim, device=device) * -emb)
         emb = x[:, None] * emb[None, :]
         emb = torch.cat((emb.sin(), emb.cos()), dim=-1)
+        if self.dummy_param.dtype == torch.float16:
+            emb = emb.half()
         return emb
 
 

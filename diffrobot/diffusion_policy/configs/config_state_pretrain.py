@@ -18,6 +18,6 @@ lr_scheduler_profile = 'cosine'
 weight_decay = 1e-6
 num_warmup_steps = 500
 
-use_object_centric = True
+action_frame = 'object_centric' # 'absolute', 'end-effector', 'deltas'
 
 dataset_path = "/home/krishan/work/2024/datasets/franka_3D_reacher"
