@@ -2,6 +2,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 from diffusers.schedulers.scheduling_ddpm import DDPMScheduler
+from diffusers.schedulers.scheduling_dpmsolver_multistep import DPMSolverMultistepScheduler
 from diffusers.training_utils import EMAModel
 from diffusers.optimization import get_scheduler
 from tqdm.auto import tqdm
@@ -21,6 +22,8 @@ import numpy as np
 from diffrobot.diffusion_policy.utils.im_utils import FixedCropTransform
 from diffrobot.diffusion_policy.utils.config_utils import get_config
 
+# torch.backends.cuda.matmul.allow_tf32 = True
+
 
 class DiffusionPolicy():
     def __init__(self, config_file='config_vision', 
@@ -33,8 +36,9 @@ class DiffusionPolicy():
         self.params = get_config(config_file)
         self.policy_type = policy_type
         self.mode = mode
+        self.precision = torch.float32
 
-        if self.params.use_object_centric:
+        if self.params.action_frame == 'object_centric' or self.params.action_frame == 'end_effector':
             print('Using object centric frame.')
 
             with open(f'../calibration_data/cameras.yaml', 'r') as stream:
@@ -67,18 +71,43 @@ class DiffusionPolicy():
         self.device = torch.device('cuda')
         _ = self.nets.to(self.device)
 
+        # half precision
+        if self.precision == torch.float16:
+            self.nets.half()
+        
         self.ema = EMAModel(
             parameters=self.nets.parameters(),
             power=0.75)
 
-        self.noise_scheduler = DDPMScheduler(
-            num_train_timesteps=self.params.num_diffusion_iters,
-            # the choice of beta schedule has big impact on performance
-            beta_schedule='squaredcos_cap_v2',
-            # clip output to [-1,1] to improve stability
-            clip_sample=True,
-            # network predicts noise (instead of denoised action)
-            prediction_type='epsilon'
+        # self.noise_scheduler = DDPMScheduler(
+        #     num_train_timesteps=self.params.num_diffusion_iters,
+        #     # the choice of beta schedule has big impact on performance
+        #     beta_schedule='squaredcos_cap_v2',
+        #     # clip output to [-1,1] to improve stability
+        #     clip_sample=True,
+        #     # network predicts noise (instead of denoised action)
+        #     prediction_type='epsilon'
+        #     )
+
+        self.noise_scheduler = DPMSolverMultistepScheduler(
+            num_train_timesteps=20,
+            beta_start=0.0001,
+            beta_end=0.02,
+            beta_schedule="squaredcos_cap_v2",
+            trained_betas=None,
+            solver_order=2,
+            prediction_type="epsilon",
+            thresholding=False,
+            dynamic_thresholding_ratio=0.995,
+            sample_max_value=1.0,
+            algorithm_type="sde-dpmsolver++",
+            solver_type="midpoint",
+            lower_order_final=True,
+            use_karras_sigmas=True,
+            lambda_min_clipped= -float("inf"),
+            variance_type=None,
+            timestep_spacing="linspace",
+            steps_offset=0,
             )
         
         
@@ -115,7 +144,7 @@ class DiffusionPolicy():
                             "pred_horizon": self.params.pred_horizon,
                             "obs_horizon": self.params.obs_horizon,
                             "action_horizon": self.params.action_horizon,
-                            "use_object_centric": self.params.use_object_centric}
+                            "action_frame": self.params.action_frame,}
             
             self.train_dataset = DatasetClass(phase='train', **dataset_params, 
                                               transform=self.transform if policy_type == 'vision' else None)
@@ -189,9 +218,9 @@ class DiffusionPolicy():
 
 
     def process_batch_state(self, nbatch):
-        ngoal = nbatch['goal'].to(self.device, dtype=torch.float32)
-        nagent_pos = nbatch['robot_state'][:, :self.params.obs_horizon].to(self.device, dtype=torch.float32)
-        naction = nbatch['action'].to(self.device, dtype=torch.float32)
+        ngoal = nbatch['goal'].to(self.device, dtype=self.precision)
+        nagent_pos = nbatch['robot_state'][:, :self.params.obs_horizon].to(self.device, dtype=self.precision)
+        naction = nbatch['action'].to(self.device, dtype=self.precision)
 
         obs_cond = nagent_pos.flatten(start_dim=1)
         # obs_cond = torch.cat([ngoal, obs_cond], dim=-1)
@@ -206,14 +235,14 @@ class DiffusionPolicy():
         nimage_hand = nbatch['image_hand'].to(self.device)
         nimage_front = nbatch['image_front'].to(self.device)
         nagent_pos = nbatch['robot_state'].to(self.device)
-        naction = nbatch['action'].to(self.device, dtype=torch.float32)
+        naction = nbatch['action'].to(self.device, dtype=self.precision)
 
         image_features_hand = self.nets['vision_encoder_hand'](nimage_hand.flatten(end_dim=1)).reshape(*nimage_hand.shape[:2], -1)
         image_features_front = self.nets['vision_encoder_front'](nimage_front.flatten(end_dim=1)).reshape(*nimage_front.shape[:2], -1)
 
         image_features = torch.cat([image_features_hand, image_features_front], dim=-1)
         obs_features = torch.cat([image_features, nagent_pos], dim=-1)
-        obs_cond = obs_features.flatten(start_dim=1).to(dtype=torch.float32)
+        obs_cond = obs_features.flatten(start_dim=1).to(dtype=self.precision)
 
         return obs_cond, naction
 
@@ -229,7 +258,7 @@ class DiffusionPolicy():
                     obs_cond, naction = self.process_batch_state(nbatch)
 
                 # sample noise to add to actions
-                noise = torch.randn(naction.shape, device=self.device)
+                noise = torch.randn(naction.shape, device=self.device, dtype=self.precision)
 
                 # sample a diffusion iteration for each data point
                 B = naction.shape[0]
@@ -242,10 +271,9 @@ class DiffusionPolicy():
                 # (this is the forward diffusion process)
                 noisy_actions = self.noise_scheduler.add_noise(
                     naction, noise, timesteps)
-                
+                                                
                 # predict the noise residual
-                noise_pred = self.nets['noise_pred_net'](
-                    noisy_actions, timesteps, global_cond=obs_cond)
+                noise_pred = self.nets['noise_pred_net'](noisy_actions, timesteps, global_cond=obs_cond)
 
                 # L2 loss
                 loss = nn.functional.mse_loss(noise_pred, noise)
@@ -285,7 +313,7 @@ class DiffusionPolicy():
                 elif self.policy_type == 'state':
                     obs_cond, naction = self.process_batch_state(nbatch)
 
-                noise = torch.randn(naction.shape, device=self.device)
+                noise = torch.randn(naction.shape, device=self.device, dtype=self.precision)
                 B = naction.shape[0]
 
                 timesteps = torch.randint(
@@ -317,7 +345,7 @@ class DiffusionPolicy():
 
     def process_inference_state(self, obs_deque):
 
-        if self.params.use_object_centric:
+        if self.params.action_frame == 'object_centric':
             # self.X_BC
             X_CO = obs_deque[0]['goal']
             # Get X_OE
@@ -326,18 +354,20 @@ class DiffusionPolicy():
             X_OE = [np.dot(np.linalg.inv(X_BO), X_BE['agent_pos'])[:3,3] for X_BE in obs_deque]
             agent_poses = np.stack(X_OE)
             goal = obs_deque[-1]['goal'][:3,3]
-        else:
+        elif self.params.action_frame == 'absolute':
             agent_poses = np.stack([x['agent_pos'][:3,3] for x in obs_deque])
             goal = obs_deque[-1]['goal'][:3,3]
+        elif self.params.action_frame == 'end_effector':
+            pass
 
         nagent_poses = normalize_data(agent_poses, stats=self.stats['states'])
         ngoal = normalize_data(goal, stats=self.stats['goals'])
-        nagent_poses = torch.from_numpy(nagent_poses).to(self.device, dtype=torch.float32)
-        ngoal = torch.from_numpy(ngoal).to(self.device, dtype=torch.float32)
+        nagent_poses = torch.from_numpy(nagent_poses).to(self.device, dtype=self.precision)
+        ngoal = torch.from_numpy(ngoal).to(self.device, dtype=self.precision)
 
         obs_cond = nagent_poses.flatten(start_dim=0)
 
-        if self.params.use_object_centric:
+        if self.params.action_frame == 'object_centric':
             obs_cond = torch.unsqueeze(obs_cond, dim=0)
         else:
             obs_cond = torch.unsqueeze(torch.cat([ngoal, obs_cond], dim=-1), dim=0)
@@ -354,9 +384,9 @@ class DiffusionPolicy():
         nimage_front = image_front / 255.0
         nimage_hand = image_hand / 255.0
 
-        nagent_poses = torch.from_numpy(nagent_poses).to(self.device, dtype=torch.float32)
-        nimage_front = torch.from_numpy(nimage_front).to(self.device, dtype=torch.float32)
-        nimage_hand = torch.from_numpy(nimage_hand).to(self.device, dtype=torch.float32)
+        nagent_poses = torch.from_numpy(nagent_poses).to(self.device, dtype=self.precision)
+        nimage_front = torch.from_numpy(nimage_front).to(self.device, dtype=self.precision)
+        nimage_hand = torch.from_numpy(nimage_hand).to(self.device, dtype=self.precision)
 
         nimage_front = nimage_front.permute(0,3,1,2)
         nimage_front = torch.stack([self.transform(img) for img in nimage_front])
@@ -418,7 +448,7 @@ class DiffusionPolicy():
         action = action_pred[start:end,:]
 
 
-        if self.params.use_object_centric:
+        if self.params.action_frame == 'object_centric':
             self.X_BC
             X_CO = obs_deque[0]['goal']
             # The action is a series of points in the object frame

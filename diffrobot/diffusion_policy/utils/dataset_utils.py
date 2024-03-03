@@ -48,6 +48,8 @@ def sample_sequence_states(dataset_path: str, states: list, goals: list, episode
 
 
 
+
+
 def flatten_2d_lists(list_of_lists):
     flattened_list = []
     for sublist in list_of_lists:

@@ -13,26 +13,31 @@ class DiffusionStateDataset(torch.utils.data.Dataset):
                  obs_horizon: int,
                  action_horizon: int,
                  phase: str,
-                 use_object_centric: bool,
+                 action_frame: str,
                  transform):
         
 
-        self.use_object_centric = use_object_centric
+        self.action_frame = action_frame
         self.dataset_path = dataset_path
         self.all_state_poses = extract_robot_poses(dataset_path)
         self.all_goal_poses = extract_goal_poses(dataset_path)
+        self.phase = phase
+
+
+        indices = create_sample_indices(sequence_length=pred_horizon,
+                                        dataset_path=dataset_path)
+        
+
+        with open(f'{dataset_path}/cameras.yaml', 'r') as stream:
+                cameras = yaml.safe_load(stream)
+        X_BC = np.array(cameras['side']['X_BC'])
+        self.X_BC = X_BC
 
         # transform all robot state poses to the object(goal) frame
-        if self.use_object_centric:
+        if self.action_frame == 'object_centric':
             # X_BE: Robot end effector wrt base frame
             # X_CO: Object frame wrt camera frame
             # X_BC: Camera frame wrt base frame
-
-            with open(f'{dataset_path}/cameras.yaml', 'r') as stream:
-                cameras = yaml.safe_load(stream)
-
-            X_BC = np.array(cameras['side']['X_BC'])
-
             self.object_centric_states = []
 
             for i in range(len(self.all_state_poses)):
@@ -50,20 +55,34 @@ class DiffusionStateDataset(torch.utils.data.Dataset):
             self.all_state_poses = self.object_centric_states
 
 
+        elif self.action_frame == 'end-effector':
+            # need to get all the actions to compute the stats
+            self.all_state_poses_EE = []
+            for idx in indices:
+                episode, start_idx, end_idx = idx
+                poses_ = self.all_state_poses[episode][start_idx:end_idx]
+                X_CO = self.all_goal_poses[episode]
+
+                X_BE0 = self.all_state_poses[episode][start_idx]
+                # transform all poses (X_BE) to the first EE frame (X_BE0)
+                temp = []
+                for i in range(len(poses_)):
+                    temp.append(np.dot(np.linalg.inv(X_BE0), poses_[i]))
+
+                self.all_state_poses_EE.append(temp)
+                
+                # transform the goal (X_CO) to the first EE frame (X_BE0) using X_BC to get X_E0O
+                X_BO = np.dot(X_BC, X_CO)
+                X_E0O = np.dot(np.linalg.inv(X_BE0), X_BO)
+                self.all_goal_poses[episode] = X_E0O
+
+            self.all_state_poses = self.all_state_poses_EE
+
+
         # get xyz from the object centric states
         self.all_states = extract_robot_positions(self.all_state_poses)
         self.all_goals = extract_goal_positions(self.all_goal_poses)
 
-        
-        # self.all_states = np.load(f'{dataset_path}/all_states.pkl', allow_pickle=True)
-        # self.all_goals = np.load(f'{dataset_path}/all_goals.pkl', allow_pickle=True)
-
-        self.phase = phase
-
-        indices = create_sample_indices(
-            sequence_length=pred_horizon,
-            dataset_path=dataset_path)
-        
         # shuffle indices
         np.random.seed(0)
         np.random.shuffle(indices)
@@ -125,7 +144,7 @@ class DiffusionStateDataset(torch.utils.data.Dataset):
         return nsample
     
 
-# # test
+# # # test
 # fpath = "/home/krishan/work/2024/datasets/franka_3D_reacher"
 # dataset = DiffusionStateDataset(
 #     dataset_path=fpath,
@@ -133,5 +152,6 @@ class DiffusionStateDataset(torch.utils.data.Dataset):
 #     obs_horizon=2,
 #     action_horizon=8,
 #     phase='train',
+#     action_frame='end-effector',
 #     transform=None)
 
