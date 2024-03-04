@@ -1,11 +1,14 @@
 import panda_py
 from dynamixel.robot import DynamixelRobot
 import numpy as np
-from robot.robot import Robot, to_affine, pos_orn_to_matrix
+from robot.robot import Robot, to_affine, pos_orn_to_matrix, matrix_to_affine, matrix_to_pos_orn
 import reactivex as rx
 from reactivex import operators as ops
 import time
 from frankx import Waypoint
+import pdb
+from scipy.spatial.transform.rotation import Rotation as R
+import open3d as o3d
 
 class Teleop:
 	def __init__(self, hostname: str = "172.16.0.2"):
@@ -44,6 +47,34 @@ class Teleop:
 		gello_q = self.gello.get_joint_state()[:7]
 		q = self.panda.get_joints()
 		return check_joint_discrepency(gello_q, q)
+
+	def visualise_poses(self, pose_matrices):
+		# Create Open3D visualization window
+		visualizer = o3d.visualization.Visualizer()
+		visualizer.create_window()
+
+		# Iterate over each pose matrix
+		for pose_matrix in pose_matrices:
+			# Create a mesh representing the coordinate frame
+			frame_mesh = o3d.geometry.TriangleMesh.create_coordinate_frame(size=1.0)
+
+			# Apply the pose transformation to the coordinate frame
+			frame_mesh.transform(pose_matrix)
+
+			# Add coordinate frame mesh to the visualization window
+			visualizer.add_geometry(frame_mesh)
+
+		# Set viewpoint
+		visualizer.get_view_control().set_front([0, 0, 1])
+		visualizer.get_view_control().set_up([0, -1, 0])
+		visualizer.get_view_control().set_lookat([0, 0, 0])
+		visualizer.get_view_control().convert_from_pinhole_camera_parameters(
+			o3d.camera.PinholeCameraParameters())
+
+		# Run the visualization
+		visualizer.run()
+
+
 	
 	def take_control(self):
 		assert self.stop_requested == False
@@ -59,6 +90,9 @@ class Teleop:
 		z_height = trans[2]
 		orien = self.panda.get_orientation()
 
+		temp_pose = pose
+
+
 		self.motion = self.panda.start_cartesian_controller()
 
 		print("---------YOU ARE IN CONTROL--------")
@@ -66,7 +100,15 @@ class Teleop:
 		while not self.stop_requested:
 			gello_q = self.gello.get_joint_state()
 			pose = panda_py.fk(gello_q[:7])
-			trans = pose[:3, 3]
+
+			# print('Gello: ', gello_q[:7])
+			# print('Franka: ', self.panda.get_joints())
+
+			# poses_matrices = [temp_pose, pose]
+			# self.visualise_poses(poses_matrices)
+
+			trans, _ = matrix_to_pos_orn(pose)
+			# print(orien)
 			# trans[2] = z_height
 			self.motion.set_next_waypoint(Waypoint(to_affine(trans, orien)))
 			time.sleep(1/30.0)

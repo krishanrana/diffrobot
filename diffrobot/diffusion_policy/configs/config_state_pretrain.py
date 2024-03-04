@@ -7,7 +7,7 @@ obs_horizon = 2
 action_horizon = 8
 global_cond_dim = (obs_dim*obs_horizon)
 
-num_diffusion_iters = 100
+num_diffusion_iters = 70 #100
 
 batch_size = 128
 num_workers = 11
