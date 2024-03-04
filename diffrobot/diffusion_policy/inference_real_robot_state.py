@@ -40,6 +40,7 @@ torch.cuda.empty_cache()
 
 saved_run_name = 'logical-thunder-6_state'
 # saved_run_name = 'distinctive-star-4_state'
+# saved_run_name = 'rose-haze-19_state'
 
 
 policy = DiffusionPolicy(mode='infer', 
@@ -65,7 +66,7 @@ print("Camera setup complete")
 # Setup robot
 panda = Robot("172.16.0.2")
 panda.set_dynamic_rel(0.4, accel_rel=0.005, jerk_rel=0.005)
-panda.move_to_joints([-1.56832675,  0.39303148,  0.02632776, -1.98690212, -0.00319773,  2.35042797, 0.94667396])
+panda.move_to_joints([-1.595296889799552, 0.20639970338361455, 0.11555337082325448, -2.062858170994541, -0.015267791359554679, 2.2535057711421804, 0.8283025085881378])
 
 pose = panda.get_tcp_pose()
 trans = pose[:3, 3]

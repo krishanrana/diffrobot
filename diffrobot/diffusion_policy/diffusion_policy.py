@@ -2,6 +2,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 from diffusers.schedulers.scheduling_ddpm import DDPMScheduler
+from diffusers.schedulers.scheduling_ddim import DDIMScheduler
 from diffusers.schedulers.scheduling_dpmsolver_multistep import DPMSolverMultistepScheduler
 from diffusers.training_utils import EMAModel
 from diffusers.optimization import get_scheduler
@@ -36,7 +37,7 @@ class DiffusionPolicy():
         self.params = get_config(config_file)
         self.policy_type = policy_type
         self.mode = mode
-        self.precision = torch.float32
+        self.precision = torch.float16
 
         if self.params.action_frame == 'object_centric' or self.params.action_frame == 'end_effector':
             print('Using object centric frame.')
@@ -79,7 +80,17 @@ class DiffusionPolicy():
             parameters=self.nets.parameters(),
             power=0.75)
 
-        # self.noise_scheduler = DDPMScheduler(
+        self.noise_scheduler = DDPMScheduler(
+            num_train_timesteps=self.params.num_diffusion_iters,
+            # the choice of beta schedule has big impact on performance
+            beta_schedule='squaredcos_cap_v2',
+            # clip output to [-1,1] to improve stability
+            clip_sample=True,
+            # network predicts noise (instead of denoised action)
+            prediction_type='epsilon'
+            )
+
+        # self.noise_scheduler = DDIMScheduler(
         #     num_train_timesteps=self.params.num_diffusion_iters,
         #     # the choice of beta schedule has big impact on performance
         #     beta_schedule='squaredcos_cap_v2',
@@ -89,26 +100,26 @@ class DiffusionPolicy():
         #     prediction_type='epsilon'
         #     )
 
-        self.noise_scheduler = DPMSolverMultistepScheduler(
-            num_train_timesteps=20,
-            beta_start=0.0001,
-            beta_end=0.02,
-            beta_schedule="squaredcos_cap_v2",
-            trained_betas=None,
-            solver_order=2,
-            prediction_type="epsilon",
-            thresholding=False,
-            dynamic_thresholding_ratio=0.995,
-            sample_max_value=1.0,
-            algorithm_type="sde-dpmsolver++",
-            solver_type="midpoint",
-            lower_order_final=True,
-            use_karras_sigmas=True,
-            lambda_min_clipped= -float("inf"),
-            variance_type=None,
-            timestep_spacing="linspace",
-            steps_offset=0,
-            )
+        # self.noise_scheduler = DPMSolverMultistepScheduler(
+        #     num_train_timesteps=self.params.num_diffusion_iters,
+        #     beta_start=0.0001,
+        #     beta_end=0.02,
+        #     beta_schedule="squaredcos_cap_v2",
+        #     trained_betas=None,
+        #     solver_order=2,
+        #     prediction_type="epsilon",
+        #     thresholding=False,
+        #     dynamic_thresholding_ratio=0.995,
+        #     sample_max_value=1.0,
+        #     algorithm_type="sde-dpmsolver++",
+        #     solver_type="midpoint",
+        #     lower_order_final=True,
+        #     use_karras_sigmas=True,
+        #     lambda_min_clipped= -float("inf"),
+        #     variance_type=None,
+        #     timestep_spacing="linspace",
+        #     steps_offset=0,
+        #     )
         
         
         if mode == 'train':
@@ -209,9 +220,13 @@ class DiffusionPolicy():
 
         state_dict_nets = torch.load(fpath_nets, map_location='cuda')
         self.nets.load_state_dict(state_dict_nets)
-
         state_dict_ema = torch.load(fpath_ema, map_location='cuda')
         self.ema_nets.load_state_dict(state_dict_ema)
+
+        if self.precision == torch.float16:
+            self.nets.half()
+            self.ema_nets.half()
+
         self.ema = EMAModel(parameters=self.ema_nets.parameters(), power=0.75)
 
         print('Pretrained weights loaded.')
@@ -415,11 +430,12 @@ class DiffusionPolicy():
                 obs_cond = self.process_inference_state(obs_deque)
 
             # initialize action from Guassian noise
-            noisy_action = torch.randn((1, self.params.pred_horizon, self.params.action_dim), device=self.device)
+            noisy_action = torch.randn((1, self.params.pred_horizon, self.params.action_dim), device=self.device, dtype=self.precision)
             naction = noisy_action
 
             # init scheduler
             self.noise_scheduler.set_timesteps(self.params.num_diffusion_iters)
+            # self.noise_scheduler.set_timesteps(20)
 
             for k in self.noise_scheduler.timesteps:
                 # predict noise

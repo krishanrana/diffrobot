@@ -16,6 +16,10 @@ import pdb
 panda = Robot("172.16.0.2")
 panda.set_dynamic_rel(0.4)
 
+
+while True:
+    print(panda.get_joints())
+
 panda.move_to_joints([-1.56832675,  0.39303148,  0.02632776, -1.98690212, -0.00319773,  2.35042797, 0.94667396])
 
 pose = panda.get_tcp_pose()
