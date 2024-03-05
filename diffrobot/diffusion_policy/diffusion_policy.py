@@ -37,7 +37,7 @@ class DiffusionPolicy():
         self.params = get_config(config_file)
         self.policy_type = policy_type
         self.mode = mode
-        self.precision = torch.float16
+        self.precision = torch.float32
 
         if self.params.action_frame == 'object_centric' or self.params.action_frame == 'end_effector':
             print('Using object centric frame.')

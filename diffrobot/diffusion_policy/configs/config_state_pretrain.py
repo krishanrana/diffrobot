@@ -1,13 +1,13 @@
 
 goal_dim = 3
 obs_dim =  3
-action_dim = 3
+action_dim = 3 + 1 # 3 for position, 1 for progress
 pred_horizon = 16
 obs_horizon = 2
 action_horizon = 8
 global_cond_dim = (obs_dim*obs_horizon)
 
-num_diffusion_iters = 70 #100
+num_diffusion_iters = 100 # use 16 during inference
 
 batch_size = 128
 num_workers = 11
