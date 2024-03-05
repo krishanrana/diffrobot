@@ -22,6 +22,7 @@ class DiffusionStateDataset(torch.utils.data.Dataset):
         self.all_state_poses = extract_robot_poses(dataset_path)
         self.all_goal_poses = extract_goal_poses(dataset_path)
         self.phase = phase
+        self.learn_progress = True
 
 
         indices = create_sample_indices(sequence_length=pred_horizon,
@@ -79,9 +80,19 @@ class DiffusionStateDataset(torch.utils.data.Dataset):
             self.all_state_poses = self.all_state_poses_EE
 
 
-        # get xyz from the object centric states
+        # get xyz from the states
         self.all_states = extract_robot_positions(self.all_state_poses)
         self.all_goals = extract_goal_positions(self.all_goal_poses)
+
+
+        if self.learn_progress:
+            # compute a progress value based on the length of the episode
+            self.progress = [np.linspace(0, 1, len(states)) for states in self.all_states]
+            # create all actions list with appended progress to the states to make it a 4D tensor
+            self.all_actions = [np.append(states, progress[:, None], axis=1) for states, progress in zip(self.all_states, self.progress)]
+
+        else:
+            self.all_actions = self.all_states
 
         # shuffle indices
         np.random.seed(0)
@@ -101,7 +112,7 @@ class DiffusionStateDataset(torch.utils.data.Dataset):
         # normalized_train_data = dict()
         stats["goals"] = get_data_stats(self.all_goals)
         stats["states"] = get_data_stats(self.all_states)
-        stats["actions"] = get_data_stats(self.all_states)
+        stats["actions"] = get_data_stats(self.all_actions)
         stats["images"] = {
             'min': 0,
             'max': 255
@@ -130,6 +141,7 @@ class DiffusionStateDataset(torch.utils.data.Dataset):
         nsample = sample_sequence_states(
             dataset_path=self.dataset_path,
             states=self.all_states[episode],
+            actions=self.all_actions[episode],
             episode=episode,
             goals=self.all_goals,
             start_idx=sample_start_idx,
@@ -145,13 +157,13 @@ class DiffusionStateDataset(torch.utils.data.Dataset):
     
 
 # # # test
-# fpath = "/home/krishan/work/2024/datasets/franka_3D_reacher"
-# dataset = DiffusionStateDataset(
-#     dataset_path=fpath,
-#     pred_horizon=16,
-#     obs_horizon=2,
-#     action_horizon=8,
-#     phase='train',
-#     action_frame='end-effector',
-#     transform=None)
+fpath = "/home/krishan/work/2024/datasets/franka_3D_reacher"
+dataset = DiffusionStateDataset(
+    dataset_path=fpath,
+    pred_horizon=16,
+    obs_horizon=2,
+    action_horizon=8,
+    phase='train',
+    action_frame='object-centric',
+    transform=None)
 

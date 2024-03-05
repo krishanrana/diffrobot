@@ -36,13 +36,13 @@ def create_sample_indices(sequence_length:int,
 
 
 
-def sample_sequence_states(dataset_path: str, states: list, goals: list, episode: int, start_idx: int, end_idx: int):
+def sample_sequence_states(dataset_path: str, states: list, goals: list, actions: list, episode: int, start_idx: int, end_idx: int):
 
     data = {
         # 'image_top': f_top,
         'goal': goals[episode],
         'robot_state': states[start_idx:end_idx],
-        'action': states[start_idx+1:end_idx+1]
+        'action': actions[start_idx+1:end_idx+1]
     }
     return data
 
