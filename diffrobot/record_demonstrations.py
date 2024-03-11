@@ -1,6 +1,6 @@
 from realsense.multi_realsense import MultiRealsense
-# from teleop import Teleop
-from teleop_cartesian_frankx import Teleop
+from teleop import Teleop
+# from teleop_cartesian_frankx import Teleop
 import time
 import json
 import numpy as np
@@ -33,7 +33,7 @@ if __name__ == "__main__":
         record_fps=record_fps,
         serial_numbers=[
             'f1230727', # gripper
-            '035122250692' # front
+            # '035122250692' # front
             # '032522250135', # top    
             # '035122250388', # side top
             ],
@@ -56,17 +56,17 @@ if __name__ == "__main__":
     idx = params.idx
 
     cam_gripper = cams.cameras['f1230727']
-    cam_front = cams.cameras['035122250692']
+    # cam_front = cams.cameras['035122250692']
     #marker_detector_top = ArucoDetector(cam_top, 0.039, aruco.DICT_4X4_50, 37, visualize=False)
     #marker_detector_side = ArucoDetector(cam_side, 0.039, aruco.DICT_4X4_50, 37, visualize=False)
 
     # Save camera intrinsics for cam_side
-    cam_front_intrinsics = cam_front.get_intrinsics()
+    # cam_front_intrinsics = cam_front.get_intrinsics()
     cam_gripper_intrinsics = cam_gripper.get_intrinsics()
 
 
-    with open(f"data/{params.name}/cam_front_intrinsics.json", "w") as f:
-        json.dump(cam_front_intrinsics.tolist(), f, indent=4)
+    # with open(f"data/{params.name}/cam_front_intrinsics.json", "w") as f:
+        # json.dump(cam_front_intrinsics.tolist(), f, indent=4)
     with open(f"data/{params.name}/cam_gripper_intrinsics.json", "w") as f:
         json.dump(cam_gripper_intrinsics.tolist(), f, indent=4)
 

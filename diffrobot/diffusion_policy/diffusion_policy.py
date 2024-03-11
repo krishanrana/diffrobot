@@ -465,15 +465,16 @@ class DiffusionPolicy():
 
 
         if self.params.action_frame == 'object_centric':
-            self.X_BC
             X_CO = obs_deque[0]['goal']
             # The action is a series of points in the object frame
             # Convert each one to a [x,y,z] point in robot frame
             X_BO = np.dot(self.X_BC, X_CO)
 
-            X_BE = [np.dot(X_BO, np.concatenate([a, np.array([1])])).T for a in action]
+            X_BE = np.array([np.dot(X_BO, np.concatenate([a[:3], np.array([1])])).T for a in action])
+            # X_BE = np.array([np.dot(X_BO, np.concatenate([a, np.array([1])])).T for a in action])
             
-            action = X_BE
+            action[:,:3] = X_BE[:,:3]
+            # action = X_BE
 
         return action
 

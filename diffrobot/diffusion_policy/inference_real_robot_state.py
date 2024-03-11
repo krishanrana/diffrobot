@@ -38,14 +38,18 @@ from diffrobot.diffusion_policy.diffusion_policy import DiffusionPolicy
 # empty cache
 torch.cuda.empty_cache()
 
-saved_run_name = 'logical-thunder-6_state'
+# object centric
+saved_run_name = 'fluent-wind-28_state'
+# saved_run_name = 'logical-thunder-6_state'
+
+# world frame
 # saved_run_name = 'distinctive-star-4_state'
 # saved_run_name = 'rose-haze-19_state'
 
 
 policy = DiffusionPolicy(mode='infer', 
                         policy_type='state', 
-                        config_file='config_state_pretrain', 
+                        config_file=f'runs/{saved_run_name}/config_state_pretrain', 
                         finetune=False, 
                         saved_run_name=saved_run_name)
 
@@ -128,8 +132,14 @@ while True:
 
         points = []
         for i in action:
-            tp = [i[0], i[1], i[2]]
-            points.append(tp)
+            print('Task Progress: ', i[3])
+            if i[3] >  0.85:
+                print('I think im done with the task!')
+                input('Should I continue?')
+                
+            else:
+                tp = [i[0], i[1], i[2]]
+                points.append(tp)
         
         points = np.array(points)
         dists = np.linalg.norm(points[1:] - points[:-1], axis=1)

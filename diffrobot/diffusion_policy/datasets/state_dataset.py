@@ -156,14 +156,14 @@ class DiffusionStateDataset(torch.utils.data.Dataset):
         return nsample
     
 
-# # # test
-fpath = "/home/krishan/work/2024/datasets/franka_3D_reacher"
-dataset = DiffusionStateDataset(
-    dataset_path=fpath,
-    pred_horizon=16,
-    obs_horizon=2,
-    action_horizon=8,
-    phase='train',
-    action_frame='object-centric',
-    transform=None)
+# # # # test
+# fpath = "/home/krishan/work/2024/datasets/franka_3D_reacher"
+# dataset = DiffusionStateDataset(
+#     dataset_path=fpath,
+#     pred_horizon=16,
+#     obs_horizon=2,
+#     action_horizon=8,
+#     phase='train',
+#     action_frame='object-centric',
+#     transform=None)
 

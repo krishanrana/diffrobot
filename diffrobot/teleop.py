@@ -20,6 +20,17 @@ class Teleop:
 		gello_q = self.gello.get_joint_state()[:7]
 		self.panda.get_robot().read_once()
 		return check_joint_discrepency(gello_q, self.panda.q)
+
+	def get_tcp_pose(self):
+		x0 = self.panda.get_position()
+		q0 = self.panda.get_orientation()
+
+		print('pos: ', x0)
+		print('quat: ', q0)
+
+
+
+
 	
 	def take_control(self):
 		assert self.stop_requested == False

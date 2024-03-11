@@ -1,4 +1,4 @@
-from frankx import JointMotion, Kinematics, Affine, LinearMotion, PathMotion
+from frankx import JointMotion, Kinematics, Affine, LinearMotion, PathMotion, Gripper
 from frankx import Robot as Panda, WaypointMotion, Waypoint
 import numpy as np
 from scipy.spatial.transform.rotation import Rotation as R
@@ -13,6 +13,7 @@ def to_affine(pos, orn):
     """
     # convert to wxyz
     orn = np.array([orn[3], orn[0], orn[1], orn[2]])
+    orn /= np.linalg.norm(orn)
     return Affine(*pos, *orn)
 
 def pos_orn_to_matrix(pos, orn):
@@ -68,6 +69,7 @@ def matrix_to_affine(mat):
 class Robot:
     def __init__(self, hostname: str = "172.16.0.2"):
         self.frankx = Panda(hostname, repeat_on_error=True, dynamic_rel=0.1)
+        self.gripper = Gripper(hostname) 
         self.frankx.recover_from_errors()
         self.frankx.set_dynamic_rel(0.1)
         self.home_joints = [0.0, -np.pi/4, 0.0, -3*np.pi/4, 0.0, np.pi/2, np.pi/4]

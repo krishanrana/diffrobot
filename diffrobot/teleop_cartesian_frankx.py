@@ -7,12 +7,13 @@ from reactivex import operators as ops
 import time
 from frankx import Waypoint
 import pdb
-from scipy.spatial.transform.rotation import Rotation as R
+from spatialmath import SE3
 import open3d as o3d
 
 class Teleop:
 	def __init__(self, hostname: str = "172.16.0.2"):
 		self.panda = Robot(hostname)
+		self.gripper = self.panda.gripper
 		self.panda.set_dynamic_rel(0.4)
 		self.gello = create_gello()
 		self.home_q = np.deg2rad([-90, 0, 0, -90, 0, 90, 45])
@@ -84,7 +85,7 @@ class Teleop:
 		# q0 = np.array([0.99954873, -0.02642627,  0.01265948, -0.00661308])
 		
 		# Move/Save to desired height and orientation
-		self.panda.move_to_joints([-1.56832675,  0.39303148,  0.02632776, -1.98690212, -0.00319773,  2.35042797, 0.94667396])
+		# self.panda.move_to_joints([-1.56832675,  0.39303148,  0.02632776, -1.98690212, -0.00319773,  2.35042797, 0.94667396])
 		pose = self.panda.get_tcp_pose()
 		trans = pose[:3, 3]
 		z_height = trans[2]
@@ -96,10 +97,11 @@ class Teleop:
 		self.motion = self.panda.start_cartesian_controller()
 
 		print("---------YOU ARE IN CONTROL--------")
-		self.panda.set_dynamic_rel(0.5, accel_rel=0.01, jerk_rel=0.01)
+		self.panda.set_dynamic_rel(0.7, accel_rel=0.01, jerk_rel=0.01)
 		while not self.stop_requested:
 			gello_q = self.gello.get_joint_state()
-			pose = panda_py.fk(gello_q[:7])
+			pose = panda_py.fk(np.round(gello_q[:7],4))
+			# se3 = SE3(pose)
 
 			# print('Gello: ', gello_q[:7])
 			# print('Franka: ', self.panda.get_joints())
@@ -107,10 +109,11 @@ class Teleop:
 			# poses_matrices = [temp_pose, pose]
 			# self.visualise_poses(poses_matrices)
 
-			trans, _ = matrix_to_pos_orn(pose)
+			trans, orien = matrix_to_pos_orn(pose)
 			# print(orien)
 			# trans[2] = z_height
 			self.motion.set_next_waypoint(Waypoint(to_affine(trans, orien)))
+			# self.motion.set_next_waypoint(Waypoint(pose))
 			time.sleep(1/30.0)
 		self.stop_requested = False
 		self.motion = None
@@ -153,9 +156,9 @@ def create_gello() -> DynamixelRobot:
 				real=True,
 				joint_ids=(1, 2, 3, 4, 5, 6, 7),
 				joint_offsets=(
-					5 * np.pi / 2,
+					1 * np.pi / 2,
 					2 * np.pi / 2,
-					0 * np.pi / 2,
+					4 * np.pi / 2,
 					2 * np.pi / 2,
 					2 * np.pi / 2,
 					2 * np.pi / 2,
@@ -192,5 +195,14 @@ if __name__ == "__main__":
 	def relinquish_and_home():
 		teleop.relinquish()
 		teleop.home_robot()
-	teleop.gello_button_stream.subscribe(lambda _: relinquish_and_home())
+	# teleop.gello_button_stream.subscribe(lambda _: relinquish_and_home())
+	def grasp(x):
+		print(x)
+		if x == "open":
+			teleop.gripper.open()
+		else:
+			teleop.gripper.close()
+
+	teleop.gello_gripper_stream.subscribe(lambda x: grasp(x))
+	# teleop.gello_button_stream.subscribe(lambda x: relinquish_and_home())
 	teleop.take_control()
