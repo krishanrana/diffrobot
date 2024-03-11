@@ -54,14 +54,14 @@ class Teleop:
 		self.panda.move(JointMotion([-1.56832675,  0.39303148,  0.02632776, -1.98690212, -0.00319773,  2.35042797, 0.94667396]))
 		pose = self.panda.current_pose.end_effector_pose
 		orientation = pose.quaternion
-		loc = pose.quaternion
-		z_height = loc[2]
+		# loc = pose.quaternion
+		# z_height = loc[2]
 		print("---------YOU ARE IN CONTROL--------")
 		while not self.stop_requested:
 			gello_q = self.gello.get_joint_state()
 			pose = Kinematics.forward(gello_q[:7])
 			new_translation = pose.translation
-			new_translation = [new_translation[0], new_translation[1], z_height]
+			# new_translation = [new_translation[0], new_translation[1], z_height]
 			projected_pose = Affine(new_translation, orientation)
 			self.panda.move(CartesianMotion(projected_pose), asynchronous=True)
 			time.sleep(1/50.0)
