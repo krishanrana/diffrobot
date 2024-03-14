@@ -34,6 +34,7 @@ class SingleRealsense(mp.Process):
             shm_manager: SharedMemoryManager,
             serial_number,
             resolution=(1280,720),
+            depth_resolution=(640,480),
             capture_fps=30,
             put_fps=None,
             put_downsample=True,
@@ -42,6 +43,7 @@ class SingleRealsense(mp.Process):
             enable_depth=False,
             enable_infrared=False,
             record_depth = True,
+            align_depth_to_color=True,
             get_max_k=30,
             advanced_mode_config=None,
             transform: Optional[Callable[[Dict], Dict]] = None,
@@ -55,24 +57,35 @@ class SingleRealsense(mp.Process):
             put_fps = capture_fps
         if record_fps is None:
             record_fps = capture_fps
+        self.align_depth_to_color = align_depth_to_color
 
         # create ring buffer
         resolution = tuple(resolution)
         shape = resolution[::-1]
+        if align_depth_to_color:
+            depth_shape = shape
+        else:
+            depth_shape = depth_resolution[::-1]
         examples = dict()
         if enable_color:
             examples['color'] = np.empty(
                 shape=shape+(3,), dtype=np.uint8)
         if enable_depth:
             examples['depth'] = np.empty(
-                shape=shape, dtype=np.uint16)
+                shape=depth_shape, dtype=np.uint16)
         if enable_infrared:
             examples['infrared'] = np.empty(
-                shape=shape, dtype=np.uint8)
+                shape=depth_shape, dtype=np.uint8)
         examples['camera_capture_timestamp'] = 0.0
         examples['camera_receive_timestamp'] = 0.0
         examples['timestamp'] = 0.0
         examples['step_idx'] = 0
+
+        expected_put_fps = put_fps
+        expedcted_capture_fps = capture_fps
+        if serial_number.startswith('f'):
+            expected_put_fps *= 2
+            expedcted_capture_fps *= 2
 
         vis_ring_buffer = SharedMemoryRingBuffer.create_from_examples(
             shm_manager=shm_manager,
@@ -80,7 +93,7 @@ class SingleRealsense(mp.Process):
                 else vis_transform(dict(examples)),
             get_max_k=1,
             get_time_budget=0.2,
-            put_desired_frequency=capture_fps
+            put_desired_frequency=expedcted_capture_fps
         )
 
         ring_buffer = SharedMemoryRingBuffer.create_from_examples(
@@ -89,7 +102,7 @@ class SingleRealsense(mp.Process):
                 else transform(dict(examples)),
             get_max_k=get_max_k,
             get_time_budget=0.2,
-            put_desired_frequency=put_fps
+            put_desired_frequency=expected_put_fps
         )
 
         # create command queue
@@ -115,11 +128,29 @@ class SingleRealsense(mp.Process):
                 dtype=np.float64)
         intrinsics_array.get()[:] = 0
 
+        depth_intrinsics_array = SharedNDArray.create_from_shape(
+                mem_mgr=shm_manager,
+                shape=(7,),
+                dtype=np.float64)
+        depth_intrinsics_array.get()[:] = 0
+
         distortion_array = SharedNDArray.create_from_shape(
                 mem_mgr=shm_manager,
                 shape=(5,),
                 dtype=np.float64)
         distortion_array.get()[:] = 0
+
+        depth_distortion_array = SharedNDArray.create_from_shape(
+                mem_mgr=shm_manager,
+                shape=(5,),
+                dtype=np.float64)
+        depth_distortion_array.get()[:] = 0
+
+        extrinsincs_array = SharedNDArray.create_from_shape(
+                mem_mgr=shm_manager,
+                shape=(16,),
+                dtype=np.float64)
+        extrinsincs_array.get()[:] = 0
 
         # create video recorder
         self.color_video_recorder = None
@@ -156,6 +187,7 @@ class SingleRealsense(mp.Process):
         # copied variables
         self.serial_number = serial_number
         self.resolution = resolution
+        self.depth_resolution = depth_resolution
         self.capture_fps = capture_fps
         self.put_fps = put_fps
         self.put_downsample = put_downsample
@@ -178,6 +210,9 @@ class SingleRealsense(mp.Process):
         self.command_queue = command_queue
         self.intrinsics_array = intrinsics_array
         self.distortion_array = distortion_array
+        self.extrinsics_array = extrinsincs_array
+        self.depth_intrinsics_array = depth_intrinsics_array
+        self.depth_distortion_array = depth_distortion_array
     
     @staticmethod
     def get_connected_devices_serial():
@@ -238,6 +273,13 @@ class SingleRealsense(mp.Process):
             'option_enum': option.value,
             'option_value': value
         })
+
+    def set_depth_option(self, option: rs.option, value: float):
+        self.command_queue.put({
+            'cmd': Command.SET_DEPTH_OPTION.value,
+            'option_enum': option.value,
+            'option_value': value
+        })
     
     def set_exposure(self, exposure=None, gain=None):
         """
@@ -263,6 +305,20 @@ class SingleRealsense(mp.Process):
             self.set_color_option(rs.option.enable_auto_white_balance, 0.0)
             self.set_color_option(rs.option.white_balance, white_balance)
 
+    def get_intrinsics_depth(self):
+        assert self.ready_event.is_set()
+        fx, fy, ppx, ppy = self.depth_intrinsics_array.get()[:4]
+        mat = np.eye(3)
+        mat[0,0] = fx
+        mat[1,1] = fy
+        mat[0,2] = ppx
+        mat[1,2] = ppy
+        return mat
+
+    def get_dist_coeffs_depth(self):
+        assert self.ready_event.is_set()
+        return self.depth_distortion_array.get()
+
     def get_intrinsics(self):
         assert self.ready_event.is_set()
         fx, fy, ppx, ppy = self.intrinsics_array.get()[:4]
@@ -276,6 +332,11 @@ class SingleRealsense(mp.Process):
     def get_dist_coeffs(self):
         assert self.ready_event.is_set()
         return self.distortion_array.get()
+
+    def get_extrinsics(self) -> np.ndarray:
+        assert self.ready_event.is_set()
+        X_CD = self.extrinsics_array.get().reshape(4, 4)
+        return X_CD
 
     def get_depth_scale(self):
         assert self.ready_event.is_set()
@@ -353,9 +414,10 @@ class SingleRealsense(mp.Process):
     def run(self):
         # limit threads
         threadpool_limits(1)
-        cv2.setNumThreads(1)
+        # cv2.setNumThreads(1) # this blocks the second time its used ...
 
         w, h = self.resolution
+        dw, dh = self.depth_resolution
         fps = self.capture_fps
         align = rs.align(rs.stream.color)
         # Enable the streams from all the intel realsense devices
@@ -365,10 +427,10 @@ class SingleRealsense(mp.Process):
                 w, h, rs.format.rgb8, fps)
         if self.enable_depth:
             rs_config.enable_stream(rs.stream.depth, 
-                w, h, rs.format.z16, fps)
+                dw, dh, rs.format.z16, fps)
         if self.enable_infrared:
             rs_config.enable_stream(rs.stream.infrared,
-                w, h, rs.format.y8, fps)
+                dw, dh, rs.format.y8, fps)
         
         try:
             rs_config.enable_device(self.serial_number)
@@ -396,14 +458,38 @@ class SingleRealsense(mp.Process):
             for i, name in enumerate(order):
                 self.intrinsics_array.get()[i] = getattr(intr, name)
             
+            
             # distortion coefficients
             distortion = intr.coeffs
             self.distortion_array.get()[:] = distortion
 
             if self.enable_depth:
                 depth_sensor = pipeline_profile.get_device().first_depth_sensor()
+                if self.serial_number.startswith('f'):
+                    depth_sensor.set_option(rs.option.visual_preset,  int(rs.l500_visual_preset.short_range))
+                    depth_sensor.set_option(rs.option.confidence_threshold, 3)
+
                 depth_scale = depth_sensor.get_depth_scale()
                 self.intrinsics_array.get()[-1] = depth_scale
+
+                depth_stream = pipeline_profile.get_stream(rs.stream.depth)
+                extrinsics = depth_stream.get_extrinsics_to(color_stream)
+                X_CD = np.eye(4)
+                X_CD[:3, :3] = np.array(extrinsics.rotation).reshape(3, 3)
+                X_CD[:3, 3] = np.array(extrinsics.translation)
+                self.extrinsics_array.get()[:] = X_CD.flatten()
+
+                intr = depth_stream.as_video_stream_profile().get_intrinsics()
+                order = ['fx', 'fy', 'ppx', 'ppy', 'height', 'width']
+                for i, name in enumerate(order):
+                    self.depth_intrinsics_array.get()[i] = getattr(intr, name)
+                
+                
+                # distortion coefficients
+                depth_distortion = intr.coeffs
+                self.distortion_array.get()[:] = depth_distortion
+            
+
             
             # one-time setup (intrinsics etc, ignore for now)
             if self.verbose:
@@ -422,7 +508,8 @@ class SingleRealsense(mp.Process):
                 frameset = pipeline.wait_for_frames()
                 receive_time = time.time()
                 # align frames to color
-                frameset = align.process(frameset)
+                if self.align_depth_to_color:
+                    frameset = align.process(frameset)
 
                 # grab data
                 data = dict()
@@ -439,7 +526,6 @@ class SingleRealsense(mp.Process):
                 if self.enable_depth:
                     data['depth'] = np.asarray(
                         frameset.get_depth_frame().get_data())
-                    data['depth'] = data['depth'].astype(np.float32) * depth_scale
                 if self.enable_infrared:
                     data['infrared'] = np.asarray(
                         frameset.get_infrared_frame().get_data())

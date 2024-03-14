@@ -15,13 +15,18 @@ class Teleop:
 		self.panda = Robot(hostname)
 		self.gripper = self.panda.gripper
 		self.panda.set_dynamic_rel(0.4)
+		
+
 		self.gello = create_gello()
-		self.home_q = np.deg2rad([-90, 0, 0, -90, 0, 90, 45])
+		# self.home_q = np.deg2rad([-90, 0, 0, -90, 0, 90, 45]) # left
+		self.home_q = np.deg2rad([0, 0, 0, -90, 0, 90, 45]) # front
 		self.stop_requested = False
 		self.motion = None
 		self.create_gello_streams()
 		self.robot_pose = None
-		self.record_data = False
+		self.constrain_pose = False
+		self.saved_trans = None
+		self.saved_orien = None
 	
 	def get_translation(self):
 		if self.motion:
@@ -37,6 +42,13 @@ class Teleop:
 			return pos_orn_to_matrix(pos, orn)
 		else:
 			return self.panda.get_tcp_pose()
+		
+	def get_joint_torques(self):
+		return np.array(self.motion.get_robot_state().tau_ext_hat_filtered)
+	
+	def get_ee_forces(self):
+		return np.array(self.motion.get_robot_state().K_F_ext_hat_K)
+
 		
 	def get_joint_positions(self):
 		return self.motion.get_robot_state().q
@@ -90,17 +102,27 @@ class Teleop:
 		trans = pose[:3, 3]
 		z_height = trans[2]
 		orien = self.panda.get_orientation()
-
 		temp_pose = pose
-
-
-		self.motion = self.panda.start_cartesian_controller()
+		
 
 		print("---------YOU ARE IN CONTROL--------")
-		self.panda.set_dynamic_rel(0.7, accel_rel=0.01, jerk_rel=0.01)
+
+		#self.panda.set_dynamic_rel(0.7, accel_rel=0.01, jerk_rel=0.01)
+		self.panda.set_dynamic_rel(1.0, accel_rel=0.2, jerk_rel=0.05)
+		self.panda.frankx.set_collision_behavior(
+			[30.0, 30.0, 30.0, 30.0, 30.0, 30.0, 30.0],
+			[30.0, 30.0, 30.0, 30.0, 30.0, 30.0, 30.0],
+			[30.0, 30.0, 30.0, 30.0, 30.0, 30.0],
+			[30.0, 30.0, 30.0, 30.0, 30.0, 30.0]
+		)
+		#self.panda.frankx.set_cartesian_impedance([30.0,30.0,30.0,10.0,10.0,10.0])
+		#self.motion = self.panda.start_cartesian_controller()
+		self.motion = self.panda.start_impedance_controller(200, 40, 5)
 		while not self.stop_requested:
 			gello_q = self.gello.get_joint_state()
 			pose = panda_py.fk(np.round(gello_q[:7],4))
+
+			# print(gello_q[-1])
 			# se3 = SE3(pose)
 
 			# print('Gello: ', gello_q[:7])
@@ -108,11 +130,19 @@ class Teleop:
 
 			# poses_matrices = [temp_pose, pose]
 			# self.visualise_poses(poses_matrices)
+			
+			self.trans, self.orien = matrix_to_pos_orn(pose)
 
-			trans, orien = matrix_to_pos_orn(pose)
+			if self.constrain_pose:
+				self.orien = self.saved_orien
+				self.trans[2] = self.saved_trans[2]
+
 			# print(orien)
 			# trans[2] = z_height
-			self.motion.set_next_waypoint(Waypoint(to_affine(trans, orien)))
+			#print(np.array(self.motion.get_robot_state().tau_ext_hat_filtered).round(3))
+			# print(np.array(self.motion.get_robot_state().K_F_ext_hat_K).round(3))
+			#self.motion.set_next_waypoint(Waypoint(to_affine(self.trans, self.orien)))
+			self.motion.set_target(to_affine(self.trans, self.orien))
 			# self.motion.set_next_waypoint(Waypoint(pose))
 			time.sleep(1/30.0)
 		self.stop_requested = False
@@ -122,10 +152,7 @@ class Teleop:
 	def relinquish(self):
 		self.stop_requested = True
 	
-	def toggle_record(self):
-		self.record_data = not self.record_data
 
-	
 	def take_control_async(self):
 		from threading import Thread
 		self.thread = Thread(target=self.take_control)
@@ -148,17 +175,19 @@ class Teleop:
 		self.gello_button_stream = self.gello_gripper_stream \
 			.pipe(ops.filter(lambda x: x == "close")) \
 			.pipe(ops.map(lambda _: True)) \
+			
 
 
+		
 def create_gello() -> DynamixelRobot:
 	return DynamixelRobot(
 				port="/dev/serial/by-id/usb-FTDI_USB__-__Serial_Converter_FT89FAFX-if00-port0",
 				real=True,
 				joint_ids=(1, 2, 3, 4, 5, 6, 7),
 				joint_offsets=(
-					1 * np.pi / 2,
-					2 * np.pi / 2,
 					4 * np.pi / 2,
+					2 * np.pi / 2,
+					0 * np.pi / 2,
 					2 * np.pi / 2,
 					2 * np.pi / 2,
 					2 * np.pi / 2,
@@ -200,9 +229,13 @@ if __name__ == "__main__":
 		print(x)
 		if x == "open":
 			teleop.gripper.open()
+			teleop.constrain_pose = False
 		else:
 			teleop.gripper.close()
+			teleop.saved_trans = teleop.trans
+			teleop.saved_orien = teleop.orien
+			teleop.constrain_pose = True
 
-	teleop.gello_gripper_stream.subscribe(lambda x: grasp(x))
+	teleop.gello_gripper_stream_2.subscribe(lambda x: grasp(x))
 	# teleop.gello_button_stream.subscribe(lambda x: relinquish_and_home())
 	teleop.take_control()

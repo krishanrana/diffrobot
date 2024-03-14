@@ -2,6 +2,8 @@ from pathlib import Path
 import numpy as np
 import subprocess as sp
 import shlex
+import pdb
+import matplotlib.pyplot as plt
 
 class VideoRecorder:
     # hevc_nvenc_counter: int = 0
@@ -42,13 +44,12 @@ class VideoRecorder:
         assert self.writer is None
         # print(self.get_command(path))
         self.writer = sp.Popen(shlex.split(self.get_command(path)), stdout=sp.DEVNULL, stdin=sp.PIPE)
+        
 
     def record_frame(self, data: np.ndarray):
         assert self.writer is not None
         assert self.width == data.shape[1] and self.height == data.shape[0]
-        if self.recorder_type == "depth":
-            data = (data / self.depth_scale).clip(0, 1) * 65535
-            data = data.astype(np.uint16)
+        #if self.recorder_type == "depth":
         self.writer.stdin.write(data.tobytes())
         self.frame_counter += 1
 

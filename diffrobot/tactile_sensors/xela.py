@@ -3,14 +3,18 @@ import json
 import threading
 import numpy as np
 import cv2
+import pdb
 
-class TactileSensor:
+class SensorSocket:
     def __init__(self, ip, port):
         self.ip = ip
         self.port = port
         self.lastmessage = {"message":"No message"}
         self.wsapp = websocket.WebSocketApp("ws://{}:{}".format(ip, port), on_message=self.on_message)
-        self.threader(self.mesreader, name="Receiver")
+        # self.threader(self.mesreader, name="Receiver")
+        self.threader(self.wsapp.run_forever, name="WebSocket")
+        # self.wsapp.run_forever()  # Start listening for messages
+        self.sensor_reading = None
 
     def on_message(self, wsapp, message):
         try:
@@ -30,18 +34,10 @@ class TactileSensor:
         thr = threading.Thread(target=target, **targs)
         thr.daemon = True
         thr.start()
-
-    def mesreader(self):
-        while True:
-            if self.lastmessage["message"] != "No message":
-                sensor = self.message_parser(self.lastmessage.copy())
-                # Call a function to process or visualize sensor data
-                self.visualize_sensor_data(sensor['1']['Forces'])
     
     def message_parser(self, msg_obj):
-        sensors_data = {}
+        processed_data = []
         for sensor_idx in range(msg_obj['sensors']):
-            values = []
             forces = []
             sensor_data = msg_obj.get(str(sensor_idx + 1))
             if sensor_data is None:
@@ -53,63 +49,65 @@ class TactileSensor:
             if len(data_val) != 3 * taxels:
                 print(f"Taxel count mismatch: {taxels} != {int(len(data_val) / 3)}")
                 return None
-            for val in data_val:
-                try:
-                    values.append(int(val, 16))
-                except ValueError:
-                    print(f"Value `{val}` is not a valid HEX number")
-                    return None
-            taxels_val = []
-            for i in range(0, len(values), 3):
-                temp_dict = {}
-                temp_dict['x'], temp_dict['y'], temp_dict['z'] = values[i:i + 3]
-                taxels_val.append(temp_dict)
-            forces_val = []
-            for i in range(0, len(forces), 3):
-                temp_dict = {}
-                x, y, z = forces[i:i + 3]
-                temp_dict['x'] = np.clip(x, 0.5, 10) - 0.5
-                temp_dict['y'] = np.clip(y, 0.5, 10) - 0.5
-                temp_dict['z'] = np.clip(z, 0.5, 10) - 0.5
-                forces_val.append(temp_dict)
-            sensor_data_dict = {
-                'Taxels': taxels_val,
-                'Forces': forces_val
-            }
-            sensors_data[str(sensor_idx + 1)] = sensor_data_dict
-        return sensors_data
 
+            forces_array = np.zeros((4, 4, 3))
+            t_idx = 0 
+            for i in range(0, len(forces), 3):
+                x, y, z = forces[i:i + 3]
+                x = np.clip(x, 0.5, 10) - 0.5
+                y = np.clip(y, 0.5, 10) - 0.5
+                z = np.clip(z, 0.5, 10) - 0.5
+                forces_array[t_idx // 4, t_idx % 4, :] = [x, y, z]
+                t_idx+=1
+            
+            processed_data.append(forces_array)
+        return processed_data
+    
     def visualize_sensor_data(self, sensor_data):
+        # Create a blank image
         image_size = 400
         img = np.zeros((image_size, image_size, 3), np.uint8)
+        # Define grid parameters
         grid_size = 4
         cell_size = image_size // grid_size
-        for idx, data in enumerate(sensor_data):
-            row = idx // grid_size
-            col = idx % grid_size
-            x, y, z = data['x'], data['y'], data['z']
-            center_x = col * cell_size + cell_size // 2
-            center_y = row * cell_size + cell_size // 2
-            disp_x = int(x * 10)  
-            disp_y = int(y * 10)  
-            radius = np.clip(int(abs(z * 10)), 3, 50)  
-            cv2.circle(img, (center_x + disp_x, center_y + disp_y), radius, (0, 255, 0), -1)
+        # Scale factor for visualization
+        scale_factor = 10
+        # Loop through each cell in the grid
+        for row in range(grid_size):
+            for col in range(grid_size):
+                # Get forces for the current cell
+                forces = sensor_data[row, col]
+                # Calculate circle center position
+                center_x = col * cell_size + cell_size // 2
+                center_y = row * cell_size + cell_size // 2
+                # Calculate displacements for visualization
+                disp_x = int(forces[0] * scale_factor)  # X displacement
+                disp_y = int(forces[1] * scale_factor)  # Y displacement
+                # Calculate circle radius based on Z force
+                radius = np.clip(int(abs(forces[2] * scale_factor)), 3, 50)
+                # Draw circle
+                cv2.circle(img, (center_x + disp_x, center_y + disp_y), radius, (0, 255, 0), -1)
+
+        # Display the image
         cv2.imshow("Sensor Data Visualization", img)
         cv2.waitKey(1)
 
-
     def get_forces(self):
         if self.lastmessage["message"] != "No message":
-            sensor = self.message_parser(self.lastmessage.copy())
-            # Assuming you want to return forces for sensor 1 as an example
-            return sensor.get('1', {}).get('Forces', [])
+            self.sensor_reading = self.message_parser(self.lastmessage.copy())
+            # self.visualize_sensor_data(self.sensor_reading[1])
+            return self.sensor_reading
         else:
+            print('[WARNING] No tactile sensor reading detected.')
             return None
 
 # Example usage:
 if __name__ == "__main__":
     ip = "131.181.33.191"  # your computer IP on the network
     port = 5000  # the port the server is running on
-    sensor_socket = TactileSensor(ip, port)
+    sensor_socket = SensorSocket(ip, port)
+
     while True:
         print(sensor_socket.get_forces())
+
+        
