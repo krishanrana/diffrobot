@@ -1,5 +1,5 @@
 import os
-from dataset import PushTImageDataset
+from diffrobot.diffusion_policy.datasets.dataset import PushTImageDataset
 import gdown
 import torch
 

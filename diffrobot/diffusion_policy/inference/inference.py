@@ -7,7 +7,7 @@ from diffusers.optimization import get_scheduler
 from tqdm.auto import tqdm
 from vision_encoder import get_resnet, replace_bn_with_gn
 from network import ConditionalUnet1D
-from dataset import PushTImageDataset, normalize_data, unnormalize_data
+from diffrobot.diffusion_policy.datasets.dataset import PushTImageDataset, normalize_data, unnormalize_data
 import wandb
 import os
 from vision_encoder import get_resnet, replace_bn_with_gn

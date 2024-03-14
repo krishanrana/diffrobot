@@ -87,9 +87,9 @@ def decode_video(dataset_path:str):
     episodes = sorted(os.listdir(os.path.join(dataset_path, "episodes")), key=lambda x: int(x))
     for episode in episodes:
             # Paths to the video files
-        vp_front = os.path.join(dataset_path, "episodes", str(episode), "video", "1.mp4")
+        vp_front = os.path.join(dataset_path, "episodes", str(episode), "video", "0.mp4")
         # vp_left = os.path.join(dataset_path, "episodes", str(episode), "video", "2.mp4")
-        vp_hand = os.path.join(dataset_path, "episodes", str(episode), "video", "0.mp4")
+        vp_hand = os.path.join(dataset_path, "episodes", str(episode), "video", "0_depth.mp4")
 
         # make images dir
         img_dir = os.path.join(dataset_path, "episodes", str(episode), "images")
@@ -97,13 +97,13 @@ def decode_video(dataset_path:str):
         
         # make dir for each stream
         # os.makedirs(os.path.join(img_dir, "top"), exist_ok=True)
-        os.makedirs(os.path.join(img_dir, "front"), exist_ok=True)
-        os.makedirs(os.path.join(img_dir, "hand"), exist_ok=True)
+        os.makedirs(os.path.join(img_dir, "rgb"), exist_ok=True)
+        os.makedirs(os.path.join(img_dir, "depth"), exist_ok=True)
 
         # decode video and resize images 
         # os.system(f"ffmpeg -i {vp_top} -vf fps=10 -s 320x180 {img_dir}/top/%d.png")
-        os.system(f"ffmpeg -i {vp_front} -vf fps=10 -s 320x180 {img_dir}/front/%d.png")
-        os.system(f"ffmpeg -i {vp_hand} -vf fps=10 -s 320x180 {img_dir}/hand/%d.png")
+        os.system(f"ffmpeg -i {vp_front} -vf fps=10 -s 1280x720 {img_dir}/rgb/%d.png")
+        os.system(f"ffmpeg -i {vp_hand} -vf fps=10 -s 1280x720 {img_dir}/depth/%d.png")
     
     print("Decoding done")
 
@@ -228,9 +228,10 @@ def extract_goal_poses(dataset_path:str):
 
 
 
-fpath = "/home/krishan/work/2024/datasets/franka_3D_reacher"
+fpath = "/home/krishan/work/2024/datasets/door_open"
+decode_video(fpath)
+
 # detect_aruco_markers(fpath)
-# decode_video(fpath)
 # out = extract_robot_poses(fpath)
 # out = extract_goal_poses(fpath)
 
