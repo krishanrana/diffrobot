@@ -1,5 +1,5 @@
 from frankx import JointMotion, Kinematics, Affine, LinearMotion, PathMotion, Gripper
-from frankx import Robot as Panda, WaypointMotion, Waypoint
+from frankx import Robot as Panda, WaypointMotion, Waypoint, ImpedanceMotion
 import numpy as np
 from scipy.spatial.transform.rotation import Rotation as R
 from panda_py._core import ik
@@ -142,5 +142,10 @@ class Robot:
         thread = self.frankx.move_async(motion)
         return motion
 
+    def start_impedance_controller(self, trans_stiffness=200.0, rot_stiffness=10.0, nullspace_stiffness=1.0):
+        home_q = np.deg2rad([0, 0, 0, -90, 0, 90, 45]) # front
+        motion = ImpedanceMotion(trans_stiffness, rot_stiffness, nullspace_stiffness, home_q)
+        thread = self.frankx.move_async(motion)
+        return motion
     
 

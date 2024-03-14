@@ -15,6 +15,7 @@ class MultiRealsense:
         serial_numbers: Optional[List[str]]=None,
         shm_manager: Optional[SharedMemoryManager]=None,
         resolution=(1280,720),
+        depth_resolution=(640,480),
         capture_fps=30,
         put_fps=None,
         put_downsample=True,
@@ -23,6 +24,7 @@ class MultiRealsense:
         enable_depth=False,
         enable_infrared=False,
         record_depth = True,
+        align_depth_to_color=True,
         get_max_k=30,
         advanced_mode_config: Optional[Union[dict, List[dict]]]=None,
         transform: Optional[Union[Callable[[Dict], Dict], List[Callable]]]=None,
@@ -37,6 +39,7 @@ class MultiRealsense:
         if serial_numbers is None:
             serial_numbers = SingleRealsense.get_connected_devices_serial()
         n_cameras = len(serial_numbers)
+        self.serial_numbers = serial_numbers
 
         advanced_mode_config = repeat_to_list(
             advanced_mode_config, n_cameras, dict)
@@ -56,9 +59,11 @@ class MultiRealsense:
                 shm_manager=shm_manager,
                 serial_number=serial,
                 resolution=resolution,
+                depth_resolution=depth_resolution,
                 capture_fps=capture_fps,
                 put_fps=put_fps,
                 put_downsample=put_downsample,
+                align_depth_to_color=align_depth_to_color,
                 record_fps=record_fps,
                 enable_color=enable_color,
                 enable_depth=enable_depth,
@@ -72,7 +77,7 @@ class MultiRealsense:
                 verbose=verbose
             )
         
-        self.cameras = cameras
+        self.cameras : Dict[str, SingleRealsense] = cameras
         self.shm_manager = shm_manager
 
     def __enter__(self):
@@ -93,6 +98,10 @@ class MultiRealsense:
             if not camera.is_ready:
                 is_ready = False
         return is_ready
+    
+    @property
+    def depth_aligned_to_color(self) -> bool:
+        return self.cameras[self.serial_numbers[0]].align_depth_to_color
     
     def start(self, wait=True, put_start_time=None):
         if put_start_time is None:
@@ -187,12 +196,24 @@ class MultiRealsense:
         else:
             self.set_color_option(rs.option.enable_auto_white_balance, 0.0)
             self.set_color_option(rs.option.white_balance, white_balance)
+        
+    def get_dist_coeffs(self):
+        return np.array([c.get_dist_coeffs() for c in self.cameras.values()])
+
+    def get_dist_coeffs_depth(self):
+        return np.array([c.get_dist_coeffs_depth() for c in self.cameras.values()])
     
     def get_intrinsics(self):
         return np.array([c.get_intrinsics() for c in self.cameras.values()])
+
+    def get_intrinsics_depth(self):
+        return np.array([c.get_intrinsics_depth() for c in self.cameras.values()])
     
     def get_depth_scale(self):
         return np.array([c.get_depth_scale() for c in self.cameras.values()])
+    
+    def get_extrinsics(self):
+        return np.array([c.get_extrinsics() for c in self.cameras.values()])
     
     def start_recording(self, video_path: Union[str, List[str]]):
         if isinstance(video_path, str):
