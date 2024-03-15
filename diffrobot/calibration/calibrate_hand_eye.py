@@ -5,10 +5,10 @@ import tyro
 import cv2
 from scipy.optimize import least_squares
 
-from robot.robot import Robot, pos_orn_to_matrix, matrix_to_pos_orn
-from calibration.cal_utils import quat_to_euler, euler_to_quat
-from realsense.single_realsense import SingleRealsense
-from calibration.aruco_detector import ArucoDetector, aruco
+from diffrobot.robot.robot import Robot, pos_orn_to_matrix, matrix_to_pos_orn
+from diffrobot.calibration.cal_utils import quat_to_euler, euler_to_quat
+from diffrobot.realsense.single_realsense import SingleRealsense
+from diffrobot.calibration.aruco_detector import ArucoDetector, aruco
 
 @dataclass
 class Params:
@@ -179,9 +179,10 @@ if __name__ == "__main__":
     # Camera
     sh = SharedMemoryManager()
     sh.start()
-    cam = SingleRealsense(sh, "317222071463")
+    cam = SingleRealsense(sh, "f1230727")
     cam.start()
-    marker_detector = ArucoDetector(cam, 0.05, aruco.DICT_4X4_50, 6)
+    marker_detector = ArucoDetector(cam, 0.05, aruco.DICT_4X4_50, 9)
+    # marker_detector = ArucoDetector(cam, 0.1, aruco.DICT_6X6_50, 0)
 
     # Robot
     robot = Robot(params.hostname)
@@ -225,7 +226,10 @@ if __name__ == "__main__":
     res = {
         "X_EV": X_EV.tolist(),
     }
-    with open("data/camera_calibration/hand_eye.json", "w") as f:
+    intrinsics = cam.get_intrinsics().tolist()
+    res["intrinsics"] = intrinsics
+    
+    with open("calibration_data/hand_eye.json", "w") as f:
         json.dump(res, f)
 
     # visualize_calibration_gripper_cam(cam, T_tcp_cam)

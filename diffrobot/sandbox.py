@@ -3,9 +3,9 @@
 # import numpy as np
 # import cv2
 
-# from realsense.single_realsense import SingleRealsense
-# from calibration.aruco_detector import ArucoDetector, aruco
-# from multiprocessing.managers import SharedMemoryManager
+from realsense.single_realsense import SingleRealsense
+from calibration.aruco_detector import ArucoDetector, aruco
+from multiprocessing.managers import SharedMemoryManager
 
 
 # from robot.robot import Robot, to_affine, pos_orn_to_matrix
@@ -17,13 +17,28 @@
 # panda.set_dynamic_rel(0.4)
 
 
-import keyboard
- 
-while True:
-   
-    print(keyboard.read_key())
-    if keyboard.read_key() == "a":
-        break
+if __name__ == "__main__":
+    from multiprocessing.managers import SharedMemoryManager
+
+    # Camera
+    sh = SharedMemoryManager()
+    sh.start()
+    cam = SingleRealsense(sh, "f1230727")
+    cam.start()
+
+    # save camera intrinsics
+    intrinsics = cam.get_intrinsics().tolist()
+    # print(intrinsics)
+
+    # save camera instrinsics
+    import json
+    with open("intrinsics.json", "w") as f:
+        json.dump(intrinsics, f)
+    
+
+
+
+    # save camera instrinsics
 
 
 # while True:
