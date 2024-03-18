@@ -1,7 +1,10 @@
 
-goal_dim = 3
-obs_dim =  3
-action_dim = 3 + 1 # 3 for position, 1 for progress
+
+low_dim = 23
+tactile_dim = 16
+obs_dim = low_dim + tactile_dim #39
+
+action_dim = 10 # 3 for position, 1 for progress
 pred_horizon = 16
 obs_horizon = 2
 action_horizon = 8
@@ -20,4 +23,4 @@ num_warmup_steps = 500
 
 action_frame = 'object_centric' # 'absolute', 'end-effector', 'deltas'
 
-dataset_path = "/home/krishan/work/2024/datasets/franka_3D_reacher"
+dataset_path = "/home/krishan/work/2024/datasets/door_open"
