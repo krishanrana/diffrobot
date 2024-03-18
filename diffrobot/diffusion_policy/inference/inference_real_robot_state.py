@@ -25,6 +25,7 @@ import time
 from torchvision.transforms import Compose, Resize
 from torchvision.transforms.functional import crop
 from diffrobot.realsense.multi_camera_visualizer import MultiCameraVisualizer
+import json
 
 import reactivex as rx
 from reactivex import operators as ops
@@ -34,12 +35,16 @@ from diffrobot.calibration.aruco_detector import ArucoDetector, aruco
 from diffrobot.realsense.single_realsense import SingleRealsense
 from diffrobot.diffusion_policy.diffusion_policy import DiffusionPolicy
 
+from diffrobot.tactile_sensors.xela import SensorSocket
+
+
 
 # empty cache
 torch.cuda.empty_cache()
 
 # object centric
-saved_run_name = 'fluent-wind-28_state'
+saved_run_name = 'graceful-feather-38_state'
+# saved_run_name = 'fluent-wind-28_state'
 # saved_run_name = 'logical-thunder-6_state'
 
 # world frame
@@ -60,9 +65,12 @@ sh = SharedMemoryManager()
 sh.start()
 cam = SingleRealsense(sh, "035122250692")
 cam.start()
-marker_detector = ArucoDetector(cam, 0.05, aruco.DICT_4X4_50, 8, visualize=False)
+marker_detector = ArucoDetector(cam, 0.05, aruco.DICT_4X4_50, 9, visualize=False)
 
 cam.set_exposure(exposure=100, gain=60)
+
+sensor_socket = SensorSocket("131.181.33.191", 5000)
+
 time.sleep(1.0)
 
 
@@ -78,6 +86,14 @@ z_height = trans[2]
 orien = panda.get_orientation()
 # motion = panda.start_cartesian_controller()
 
+
+# For now lets assume that the object is in a fixed location
+dataset_path = '/home/krishan/work/2024/datasets/door_open'
+with open(f'{dataset_path}/calibration/transforms.json', 'r') as f:
+    trans = json.load(f)
+    X_BO = np.array(trans['X_BO'])
+    X_EC = np.array(trans['X_EC'])
+
 ################################################################################
 
 def get_marker():
@@ -89,9 +105,17 @@ def get_marker():
     
 def get_obs():
     # print("Getting observation")
-    pose = panda.get_tcp_pose()
+    X_BE = panda.get_tcp_pose()
+    tactile_sensor = sensor_socket.get_forces()
+    joint_torques = panda.get_joint_torques()
+    ee_forces = panda.get_ee_forces()
     # goal = marker_detector.estimate_pose()
-    return pose
+    return {"X_BE": X_BE, 
+            "X_BO": X_BO,
+            "X_EC": X_EC,
+            "tactile_sensor": tactile_sensor, 
+            "joint_torques": joint_torques, 
+            "ee_forces": ee_forces}
 
 
 marker_stream = rx.interval(1.0/10.0, scheduler=rx.scheduler.NewThreadScheduler()) \

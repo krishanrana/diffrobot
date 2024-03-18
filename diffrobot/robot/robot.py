@@ -123,6 +123,14 @@ class Robot:
         s = self.frankx.read_once()
         return s.q
     
+    
+    def get_joint_torques(self):
+        return np.array(self.motion.get_robot_state().tau_ext_hat_filtered)
+	
+    def get_ee_forces(self):
+        return np.array(self.motion.get_robot_state().K_F_ext_hat_K)
+    
+    
     def get_tcp_pose(self):
         if self.motion == None:
             pose = self.frankx.current_pose()

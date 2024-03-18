@@ -36,7 +36,7 @@ class DiffusionPolicy():
                  policy_type='vision'
                  ):
         
-        self.params = get_config(config_file)
+        self.params = get_config(config_file, mode='train')
         self.policy_type = policy_type
         self.mode = mode
         self.precision = torch.float32
@@ -367,18 +367,42 @@ class DiffusionPolicy():
                 print('Saved best model!')
 
 
+{"X_BE": X_BE, 
+            "X_BO": X_BO,
+            "X_EC": X_EC,
+            "tactile_sensor": tactile_sensor, 
+            "joint_torques": joint_torques, 
+            "ee_forces": ee_forces}
+
+
 
     def process_inference_state(self, obs_deque):
 
         if self.params.action_frame == 'object_centric':
-            # self.X_BC
-            X_CO = obs_deque[0]['goal']
-            # Get X_OE
-            X_BC = self.X_BC
-            X_BO = np.dot(X_BC, X_CO)
-            X_OE = [np.dot(np.linalg.inv(X_BO), X_BE['agent_pos'])[:3,3] for X_BE in obs_deque]
-            agent_poses = np.stack(X_OE)
-            goal = obs_deque[-1]['goal'][:3,3]
+            # # self.X_BC
+            # X_CO = obs_deque[0]['goal']
+            # # Get X_OE
+            # X_BC = self.X_BC
+            # X_BO = np.dot(X_BC, X_CO)
+            # X_OE = [np.dot(np.linalg.inv(X_BO), X_BE['agent_pos'])[:3,3] for X_BE in obs_deque]
+            # agent_poses = np.stack(X_OE)
+            # goal = obs_deque[-1]['goal'][:3,3]
+            X_OE = [np.dot(np.linalg.inv(o['X_BO']), o['X_BE']) for o in obs_deque]
+
+            # convert X_OE to xyz positions and 6D orientations
+            ee_pos = pass
+            ee_orien = pass
+            tactile_sensor = pass
+            joint_torques = pass
+            ee_forces = pass
+            
+        
+
+
+
+
+
+
         elif self.params.action_frame == 'absolute':
             agent_poses = np.stack([x['agent_pos'][:3,3] for x in obs_deque])
             goal = obs_deque[-1]['goal'][:3,3]
