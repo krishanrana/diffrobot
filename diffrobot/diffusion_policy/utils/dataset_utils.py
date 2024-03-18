@@ -7,6 +7,9 @@ import tqdm
 from scipy.spatial.transform import Rotation as R
 import pickle
 
+from diffrobot.diffusion_policy.utils.rotation_transforms import rotation_6d_to_matrix, matrix_to_rotation_6d
+
+
 
 def create_sample_indices(sequence_length:int,
                           dataset_path:str):
@@ -33,20 +36,6 @@ def create_sample_indices(sequence_length:int,
         
     indices = np.array(indices)
     return indices
-
-
-
-def sample_sequence_states(dataset_path: str, states: list, goals: list, actions: list, episode: int, start_idx: int, end_idx: int):
-
-    data = {
-        # 'image_top': f_top,
-        'goal': goals[episode],
-        'robot_state': states[start_idx:end_idx],
-        'action': actions[start_idx+1:end_idx+1]
-    }
-    return data
-
-
 
 
 
@@ -110,50 +99,54 @@ def decode_video(dataset_path:str):
 
 
 def detect_aruco_markers(dataset_path:str):
-    intrinsics_fpath = os.path.join(dataset_path, "cam_front_intrinsics.json")
-    extrinsics_fpath = os.path.join(dataset_path, "cameras.yaml")
+    intrinsics_fpath = os.path.join(dataset_path, "calibration/hand_eye.json")
     with open(intrinsics_fpath, 'r') as f:
-        intrinsics = np.array(json.load(f))
+        intrinsics = np.array(json.load(f)['intrinsics'])
 
     # sort numerically the episodes based on folder names
     episodes = sorted(os.listdir(os.path.join(dataset_path, "episodes")), key=lambda x: int(x))
     aruco_dict = cv2.aruco.Dictionary_get(cv2.aruco.DICT_4X4_250)
     parameters = cv2.aruco.DetectorParameters_create()
-
+    
     for episode in tqdm.tqdm(episodes):
         # Paths to the image files
-        video_dir = os.path.join(dataset_path, "episodes", str(episode), "video", "1.mp4")
+        video_dir = os.path.join(dataset_path, "episodes", str(episode), "video", "0.mp4")
 
         # read frames
         cap = cv2.VideoCapture(video_dir)
         tvecs = None
         ret = True
+        frame_id = -1
+
         while ret:
             ret, frame = cap.read()
+            frame_id += 1
             if not ret:
-                break
-
+                continue
             # detect markers
             corners, ids, rejectedImgPoints = cv2.aruco.detectMarkers(frame, aruco_dict, parameters=parameters)
 
             if ids is None:
-                print("No markers found for episode ", episode)
+                # print("No markers found for episode ", episode)
                 continue
 
-            if 8 in ids:
-                idx = np.where(ids == 8)[0][0]
+            if 6 in ids:
+                idx = np.where(ids == 6)[0][0]
                 corners = np.array([corners[idx]])
                 ids = np.array([ids[idx]])
             
                 frame = cv2.aruco.drawDetectedMarkers(frame, corners, ids)
 
-                # detect and draw the pose
-                distcoeffs = np.array([-5.78085221e-02,  6.55928180e-02,  8.11965656e-05,  4.67534643e-04,
-       -2.07200460e-02])
+                # D455
+                # distcoeffs = np.array([-5.78085221e-02,  6.55928180e-02,  8.11965656e-05,  4.67534643e-04, -2.07200460e-02])
+                # L515
+                distcoeffs = np.array([0.0,0.0,0.0,0.0,0.0])
 
                 rvecs, tvecs, _ = cv2.aruco.estimatePoseSingleMarkers(corners, 0.05, intrinsics, distcoeffs)
                 for i in range(len(rvecs)):
                     frame = cv2.aruco.drawAxis(frame, intrinsics, distcoeffs, rvecs[i], tvecs[i], 0.1)
+
+                print("Marker found for episode ", episode)
 
             else:
                 print("No marker 8 found for episode ", episode)
@@ -170,10 +163,13 @@ def detect_aruco_markers(dataset_path:str):
             T_cam_marker[:3, :3] = r.as_matrix()
 
 
+            marker_info = {
+                'X_CO': T_cam_marker.tolist(),
+                'frame_id': frame_id}
 
             #save marker position as json
             with open(os.path.join(dataset_path, "episodes", str(episode), "marker_pose.json"), 'w') as f:
-                json.dump(T_cam_marker.tolist(), f)
+                json.dump(marker_info, f)
             break
 
         cap.release()
@@ -183,14 +179,23 @@ def detect_aruco_markers(dataset_path:str):
     return
 
 
-def extract_robot_positions(poses: list):
+def extract_robot_pos_orien(poses: list):
     xyz = []
+    oriens = []
     for episode in poses:
-        temp = []
+        temp_p = []
+        temp_o = []
         for pose in episode:
-            temp.append(pose[:3, 3])
-        xyz.append(temp)
-    return xyz
+            temp_p.append(pose[:3, 3])
+            rot = pose[:3, :3]
+            # check if the rotation matrix is valid
+            assert np.allclose(np.dot(rot, rot.T), np.eye(3))
+            assert np.isclose(np.linalg.det(rot), 1)
+            # convert to 6d representation
+            temp_o.append(matrix_to_rotation_6d(rot))
+        xyz.append(temp_p)
+        oriens.append(temp_o)
+    return xyz, oriens
 
 
 def extract_goal_positions(poses: list):
@@ -200,20 +205,78 @@ def extract_goal_positions(poses: list):
     return xyz
 
 
-def extract_robot_poses(dataset_path:str):
-    state_poses = []
+def parse_dataset(dataset_path:str):
+    ee_poses = []
+    tactile_data = []
+    joint_torques = []
+    ee_forces = []
    # sort numerically the episodes based on folder names
     episodes = sorted(os.listdir(os.path.join(dataset_path, "episodes")), key=lambda x: int(x))
     for episode in episodes:
         # read the state.json file which consists of a list of dictionaries
         raw_data = json.load(open(os.path.join(dataset_path, "episodes", episode ,"state.json")))
         temp_poses = []
+        temp_tactile = []
+        temp_torques = []
+        temp_forces = []
         for idx in range(len(raw_data)):
             pose = np.array(raw_data[idx]["X_BE"])
             temp_poses.append(pose)
-        
-        state_poses.append(temp_poses)
-    return state_poses
+
+            # get the tactile data
+            tactile = np.array(raw_data[idx]["tactile_sensors"])
+            temp_tactile.append(tactile)
+
+            # get the joint torques
+            torques = np.array(raw_data[idx]["joint_torques"])
+            temp_torques.append(torques)
+
+            # get the end effector forces
+            forces = np.array(raw_data[idx]["ee_forces"])
+            temp_forces.append(forces)
+
+        ee_poses.append(temp_poses)
+        tactile_data.append(temp_tactile)
+        joint_torques.append(temp_torques)
+        ee_forces.append(temp_forces)
+
+    return {
+        'ee_poses': ee_poses,
+        'tactile_data': tactile_data,
+        'joint_torques': joint_torques,
+        'ee_forces': ee_forces
+    }
+
+
+
+def compute_transforms(dataset_path:str):
+    # read JSON file
+    with open(os.path.join(dataset_path, "calibration/hand_eye.json"), 'r') as f:
+        X_EC = np.array(json.load(f)['X_EC'])
+    
+    with open(os.path.join(dataset_path, "episodes/0/marker_pose.json"), 'r') as f:
+        data = json.load(f)
+        X_CO = np.array(data['X_CO'])
+        frame_id = data['frame_id']
+
+    with open(os.path.join(dataset_path, "episodes/0/state.json"), 'r') as f:
+        data = json.load(f)[frame_id]
+        X_BE = np.array(data['X_BE'])
+
+    # compute X_BC
+    X_BC = np.dot(X_BE, X_EC)
+    # compute X_BO
+    X_BO = np.dot(X_BC, X_CO)
+    # save X_BC and X_BO
+    transforms = {
+        'X_BO': X_BO.tolist(),
+        'X_EC': X_EC.tolist(),
+    }
+
+    with open(os.path.join(dataset_path, "calibration/transforms.json"), 'w') as f:
+        json.dump(transforms, f)
+
+    return
 
 
 def extract_goal_poses(dataset_path:str):
@@ -229,10 +292,10 @@ def extract_goal_poses(dataset_path:str):
 
 
 fpath = "/home/krishan/work/2024/datasets/door_open"
-decode_video(fpath)
-
+# decode_video(fpath)
 # detect_aruco_markers(fpath)
 # out = extract_robot_poses(fpath)
 # out = extract_goal_poses(fpath)
+compute_transforms(fpath)
 
   

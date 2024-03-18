@@ -7,8 +7,9 @@ from diffusers.schedulers.scheduling_dpmsolver_multistep import DPMSolverMultist
 from diffusers.training_utils import EMAModel
 from diffusers.optimization import get_scheduler
 from tqdm.auto import tqdm
-from vision_encoder import get_resnet, replace_bn_with_gn
-from network import ConditionalUnet1D
+from diffrobot.diffusion_policy.models.vision_encoder import get_resnet, replace_bn_with_gn
+from diffrobot.diffusion_policy.models.unet import ConditionalUnet1D
+from diffrobot.diffusion_policy.models.tactile_encoder import TactileEncoder
 from diffrobot.diffusion_policy.datasets.vision_dataset import DiffusionImageDataset
 from diffrobot.diffusion_policy.datasets.state_dataset import DiffusionStateDataset
 import wandb
@@ -16,6 +17,7 @@ import pdb
 from torchvision.transforms import Compose, Resize, RandomCrop
 from diffrobot.diffusion_policy.utils.dataset_utils import normalize_data, unnormalize_data
 import yaml
+import json
 import copy
 import os
 import pickle as pkl
@@ -40,12 +42,10 @@ class DiffusionPolicy():
         self.precision = torch.float32
 
         if self.params.action_frame == 'object_centric' or self.params.action_frame == 'end_effector':
-            print('Using object centric frame.')
-
-            with open(f'../calibration_data/cameras.yaml', 'r') as stream:
-                cameras = yaml.safe_load(stream)
-
-            self.X_BC = np.array(cameras['side']['X_BC'])
+            with open(f'{self.params.dataset_path}/calibration/transforms.json', 'r') as f:
+                trans = json.load(f)
+                self.X_BO = np.array(trans['X_BO'])
+                self.X_EC = np.array(trans['X_EC'])
 
 
         # create network object
@@ -53,9 +53,15 @@ class DiffusionPolicy():
                         input_dim=self.params.action_dim,
                         global_cond_dim=self.params.global_cond_dim
                         )
+        
+        # create tactile encoder
+        self.tactile_encoder = TactileEncoder(
+            out_dim=self.params.tactile_dim,
+        )
 
         # the final arch has 2 parts
         self.nets = nn.ModuleDict({
+        'tactile_encoder': self.tactile_encoder,
         'noise_pred_net': self.noise_pred_net
         })
 
@@ -233,13 +239,17 @@ class DiffusionPolicy():
 
 
     def process_batch_state(self, nbatch):
-        ngoal = nbatch['goal'].to(self.device, dtype=self.precision)
-        nagent_pos = nbatch['robot_state'][:, :self.params.obs_horizon].to(self.device, dtype=self.precision)
-        naction = nbatch['action'].to(self.device, dtype=self.precision)
 
-        obs_cond = nagent_pos.flatten(start_dim=1)
-        # obs_cond = torch.cat([ngoal, obs_cond], dim=-1)
-        # TODO: WIP removing goal to test object centric state
+        nstate = nbatch['state'].to(self.device, dtype=self.precision)
+        naction = nbatch['action'].to(self.device, dtype=self.precision)
+        # ntactile_0 = nbatch['tactile_0'].to(self.device, dtype=self.precision)
+        ntactile_1 = nbatch['tactile_1'].to(self.device, dtype=self.precision)
+
+        # process tactile data
+        tactile_features = self.nets['tactile_encoder'](ntactile_1.flatten(end_dim=1)).reshape(*ntactile_1.shape[:2], -1)
+
+        obs_cond = torch.cat([nstate, tactile_features], dim=-1)
+        obs_cond = obs_cond.flatten(start_dim=1)
         obs_cond = torch.cat([obs_cond], dim=-1)
         
         return obs_cond, naction
@@ -469,7 +479,6 @@ class DiffusionPolicy():
             # The action is a series of points in the object frame
             # Convert each one to a [x,y,z] point in robot frame
             X_BO = np.dot(self.X_BC, X_CO)
-
             X_BE = np.array([np.dot(X_BO, np.concatenate([a[:3], np.array([1])])).T for a in action])
             # X_BE = np.array([np.dot(X_BO, np.concatenate([a, np.array([1])])).T for a in action])
             
