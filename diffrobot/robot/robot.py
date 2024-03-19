@@ -125,10 +125,18 @@ class Robot:
     
     
     def get_joint_torques(self):
-        return np.array(self.motion.get_robot_state().tau_ext_hat_filtered)
+        if self.motion:
+            return np.array(self.motion.get_robot_state().tau_ext_hat_filtered)
+        else:
+            state = self.frankx.read_once()
+            return np.array(state.tau_ext_hat_filtered)
 	
     def get_ee_forces(self):
-        return np.array(self.motion.get_robot_state().K_F_ext_hat_K)
+        if self.motion:
+            return np.array(self.motion.get_robot_state().K_F_ext_hat_K)
+        else:
+            state = self.frankx.read_once()
+            return np.array(state.K_F_ext_hat_K)
     
     
     def get_tcp_pose(self):
@@ -154,6 +162,7 @@ class Robot:
         home_q = np.deg2rad([0, 0, 0, -90, 0, 90, 45]) # front
         motion = ImpedanceMotion(trans_stiffness, rot_stiffness, nullspace_stiffness, home_q)
         thread = self.frankx.move_async(motion)
+        self.motion = motion
         return motion
     
 

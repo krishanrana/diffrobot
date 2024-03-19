@@ -291,11 +291,11 @@ def extract_goal_poses(dataset_path:str):
 
 
 
-fpath = "/home/krishan/work/2024/datasets/door_open"
+# fpath = "/home/krishan/work/2024/datasets/door_open"
 # decode_video(fpath)
 # detect_aruco_markers(fpath)
 # out = extract_robot_poses(fpath)
 # out = extract_goal_poses(fpath)
-compute_transforms(fpath)
+# compute_transforms(fpath)
 
   
