@@ -24,6 +24,7 @@ import pickle as pkl
 import numpy as np
 from diffrobot.diffusion_policy.utils.im_utils import FixedCropTransform
 from diffrobot.diffusion_policy.utils.config_utils import get_config
+from diffrobot.diffusion_policy.utils.rotation_transforms import rotation_6d_to_matrix, matrix_to_rotation_6d
 
 # torch.backends.cuda.matmul.allow_tf32 = True
 
@@ -36,17 +37,10 @@ class DiffusionPolicy():
                  policy_type='vision'
                  ):
         
-        self.params = get_config(config_file, mode='train')
+        self.params = get_config(config_file, mode=mode)
         self.policy_type = policy_type
         self.mode = mode
         self.precision = torch.float32
-
-        if self.params.action_frame == 'object_centric' or self.params.action_frame == 'end_effector':
-            with open(f'{self.params.dataset_path}/calibration/transforms.json', 'r') as f:
-                trans = json.load(f)
-                self.X_BO = np.array(trans['X_BO'])
-                self.X_EC = np.array(trans['X_EC'])
-
 
         # create network object
         self.noise_pred_net = ConditionalUnet1D(
@@ -207,7 +201,7 @@ class DiffusionPolicy():
             
         if mode == 'infer':
             self.load_weights(saved_run_name)
-            stats_path = os.path.join("runs", saved_run_name, 'stats.npy')
+            stats_path = os.path.join("../runs", saved_run_name, 'stats.npy')
             self.stats = np.load(stats_path, allow_pickle=True).item()
             if policy_type == 'vision':
                 self.transform = Compose([Resize((self.params.im_width, self.params.im_height)), FixedCropTransform(10, 10, 288, 216)])
@@ -218,11 +212,11 @@ class DiffusionPolicy():
         self.ema_nets = copy.deepcopy(self.nets)
 
         if load_best:
-            fpath_ema = os.path.join("runs", saved_run_name, "saved_weights", 'best', 'ema.ckpt')
-            fpath_nets = os.path.join("runs", saved_run_name, "saved_weights", 'best', 'net.ckpt')
+            fpath_ema = os.path.join("../runs", saved_run_name, "saved_weights", 'best', 'ema.ckpt')
+            fpath_nets = os.path.join("../runs", saved_run_name, "saved_weights", 'best', 'net.ckpt')
         else:
-            fpath_ema = os.path.join("runs", saved_run_name, "saved_weights", 'ema.ckpt')
-            fpath_nets = os.path.join("runs", saved_run_name, "saved_weights", 'net.ckpt')
+            fpath_ema = os.path.join("../runs", saved_run_name, "saved_weights", 'ema.ckpt')
+            fpath_nets = os.path.join("../runs", saved_run_name, "saved_weights", 'net.ckpt')
 
         state_dict_nets = torch.load(fpath_nets, map_location='cuda')
         self.nets.load_state_dict(state_dict_nets)
@@ -250,7 +244,6 @@ class DiffusionPolicy():
 
         obs_cond = torch.cat([nstate, tactile_features], dim=-1)
         obs_cond = obs_cond.flatten(start_dim=1)
-        obs_cond = torch.cat([obs_cond], dim=-1)
         
         return obs_cond, naction
     
@@ -367,59 +360,30 @@ class DiffusionPolicy():
                 print('Saved best model!')
 
 
-{"X_BE": X_BE, 
-            "X_BO": X_BO,
-            "X_EC": X_EC,
-            "tactile_sensor": tactile_sensor, 
-            "joint_torques": joint_torques, 
-            "ee_forces": ee_forces}
-
-
 
     def process_inference_state(self, obs_deque):
 
-        if self.params.action_frame == 'object_centric':
-            # # self.X_BC
-            # X_CO = obs_deque[0]['goal']
-            # # Get X_OE
-            # X_BC = self.X_BC
-            # X_BO = np.dot(X_BC, X_CO)
-            # X_OE = [np.dot(np.linalg.inv(X_BO), X_BE['agent_pos'])[:3,3] for X_BE in obs_deque]
-            # agent_poses = np.stack(X_OE)
-            # goal = obs_deque[-1]['goal'][:3,3]
-            X_OE = [np.dot(np.linalg.inv(o['X_BO']), o['X_BE']) for o in obs_deque]
+        X_OE = [np.dot(np.linalg.inv(o['X_BO']), o['X_BE']) for o in obs_deque]
+        ee_pos = [x[:3,3] for x in X_OE]
+        ee_orien = [matrix_to_rotation_6d(x[:3,:3]) for x in X_OE]
+        tactile_sensor = [np.transpose(x['tactile_sensor'][1], (2,0,1)) for x in obs_deque] #get tactile sensor 1
+        joint_torques = [x['joint_torques'] for x in obs_deque]
+        ee_forces = [x['ee_forces'] for x in obs_deque]
+        progress = [x['progress'] for x in obs_deque]
 
-            # convert X_OE to xyz positions and 6D orientations
-            ee_pos = pass
-            ee_orien = pass
-            tactile_sensor = pass
-            joint_torques = pass
-            ee_forces = pass
-            
-        
+        # normalize data
+        nee_pos = normalize_data(ee_pos, stats=self.stats['ee_positions'])
+        ntactile_sensor = torch.from_numpy(normalize_data(np.array(tactile_sensor), stats=self.stats['tactile_data'])).to(self.device, dtype=self.precision)
+        njoint_torques = normalize_data(joint_torques, stats=self.stats['joint_torques'])
+        nee_forces = normalize_data(ee_forces, stats=self.stats['ee_forces'])
+        nprogress = normalize_data(progress, stats=self.stats['progress']).reshape(-1, 1)
 
+        robot_state = torch.from_numpy(np.concatenate([nee_pos, ee_orien, njoint_torques, nee_forces, nprogress], axis=-1)).to(self.device, dtype=self.precision)
+        # process tactile data
+        tactile_features = self.ema_nets['tactile_encoder'](ntactile_sensor)
 
-
-
-
-
-        elif self.params.action_frame == 'absolute':
-            agent_poses = np.stack([x['agent_pos'][:3,3] for x in obs_deque])
-            goal = obs_deque[-1]['goal'][:3,3]
-        elif self.params.action_frame == 'end_effector':
-            pass
-
-        nagent_poses = normalize_data(agent_poses, stats=self.stats['states'])
-        ngoal = normalize_data(goal, stats=self.stats['goals'])
-        nagent_poses = torch.from_numpy(nagent_poses).to(self.device, dtype=self.precision)
-        ngoal = torch.from_numpy(ngoal).to(self.device, dtype=self.precision)
-
-        obs_cond = nagent_poses.flatten(start_dim=0)
-
-        if self.params.action_frame == 'object_centric':
-            obs_cond = torch.unsqueeze(obs_cond, dim=0)
-        else:
-            obs_cond = torch.unsqueeze(torch.cat([ngoal, obs_cond], dim=-1), dim=0)
+        obs_cond = torch.cat([robot_state, tactile_features], dim=-1)
+        obs_cond = obs_cond.flatten(start_dim=0).unsqueeze(0)
 
         return obs_cond
     
@@ -485,31 +449,47 @@ class DiffusionPolicy():
                     timestep=k,
                     sample=naction
                 ).prev_sample
+        
+        # unnormalize action
+        naction = naction.detach().to('cpu').numpy()[0]
+
+        # extract components
+        action_pos = naction[:,:3]
+        action_orien = naction[:,3:9]
+        action_progress = naction[:,9]
 
         # unnormalize action
-        naction = naction.detach().to('cpu').numpy()
-        # (B, pred_horizon, action_dim)
-        naction = naction[0]
-        action_pred = unnormalize_data(naction, stats=self.stats['actions'])
+        action_pos = unnormalize_data(action_pos, stats=self.stats['ee_positions'])
+        action_orien = unnormalize_data(action_orien, stats=self.stats['ee_orientations'])
+        action_progress = unnormalize_data(action_progress, stats=self.stats['progress'])
 
+        # convert orientation to rotation matrix
+        action_orien = [rotation_6d_to_matrix(torch.FloatTensor(x)) for x in action_orien]
+
+        # create a 4x4 transform matrix from action_pos (3 dim) and action_orien (3x3 dim)
+
+        # create a list if 4x4 identity matrices
+        X_OE_mtx = [np.eye(4) for _ in range(self.params.pred_horizon)]
+        for i in range(self.params.pred_horizon):
+            X_OE_mtx[i][:3, :3] = action_orien[i]
+            X_OE_mtx[i][:3, 3] = action_pos[i]
+
+        
         # only take action_horizon number of actions
         start = self.params.obs_horizon - 1
         end = start + self.params.action_horizon
-        action = action_pred[start:end,:]
-
-
+        action = X_OE_mtx[start:end]
+        progress = action_progress[start:end]
+        
         if self.params.action_frame == 'object_centric':
-            X_CO = obs_deque[0]['goal']
             # The action is a series of points in the object frame
             # Convert each one to a [x,y,z] point in robot frame
-            X_BO = np.dot(self.X_BC, X_CO)
-            X_BE = np.array([np.dot(X_BO, np.concatenate([a[:3], np.array([1])])).T for a in action])
-            # X_BE = np.array([np.dot(X_BO, np.concatenate([a, np.array([1])])).T for a in action])
-            
-            action[:,:3] = X_BE[:,:3]
-            # action = X_BE
 
-        return action
+            X_BO = obs_deque[0]['X_BO']
+            X_BE = np.array([np.dot(X_BO, X_OE) for X_OE in action])
+
+        return {'action': X_BE, 
+                'progress': progress}
 
 
 
