@@ -1,6 +1,6 @@
 
 
-low_dim = 23
+low_dim = 9 #23
 tactile_dim = 16
 obs_dim = low_dim + tactile_dim #39
 
