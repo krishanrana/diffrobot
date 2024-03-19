@@ -27,13 +27,13 @@ if __name__ == "__main__":
     cam.start()
 
     # save camera intrinsics
-    intrinsics = cam.get_intrinsics().tolist()
-    # print(intrinsics)
+    intrinsics = cam.get_intrinsics()
+    print(intrinsics.coeffs)
 
     # save camera instrinsics
-    import json
-    with open("intrinsics.json", "w") as f:
-        json.dump(intrinsics, f)
+   # import json
+   # with open("intrinsics.json", "w") as f:
+   #     json.dump(intrinsics, f)
     
 
 

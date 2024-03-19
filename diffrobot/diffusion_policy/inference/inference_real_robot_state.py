@@ -4,15 +4,13 @@ import torch.nn as nn
 from diffrobot.realsense.multi_realsense import MultiRealsense
 from diffrobot.robot.robot import Robot, to_affine, pos_orn_to_matrix
 from frankx import Affine, JointMotion, Waypoint, WaypointMotion, PathMotion
-
-
 from diffusers.schedulers.scheduling_ddpm import DDPMScheduler
 from diffusers.training_utils import EMAModel
 from diffusers.optimization import get_scheduler
 from tqdm.auto import tqdm
-from diffrobot.diffusion_policy.vision_encoder import get_resnet, replace_bn_with_gn
-from diffrobot.diffusion_policy.network import ConditionalUnet1D
-from diffrobot.diffusion_policy.utils.dataset_utils import normalize_data, unnormalize_data
+from diffrobot.diffusion_policy.models.vision_encoder import get_resnet, replace_bn_with_gn
+from diffrobot.diffusion_policy.models.unet import ConditionalUnet1D
+# from diffrobot.diffusion_policy.utils.dataset_utils import normalize_data, unnormalize_data
 # import wandb
 import os
 import collections
@@ -34,7 +32,6 @@ from multiprocessing.managers import SharedMemoryManager
 from diffrobot.calibration.aruco_detector import ArucoDetector, aruco
 from diffrobot.realsense.single_realsense import SingleRealsense
 from diffrobot.diffusion_policy.diffusion_policy import DiffusionPolicy
-
 from diffrobot.tactile_sensors.xela import SensorSocket
 
 
@@ -54,7 +51,7 @@ saved_run_name = 'graceful-feather-38_state'
 
 policy = DiffusionPolicy(mode='infer', 
                         policy_type='state', 
-                        config_file=f'runs/{saved_run_name}/config_state_pretrain', 
+                        config_file=f'../runs/{saved_run_name}/config_state_pretrain', 
                         finetune=False, 
                         saved_run_name=saved_run_name)
 
@@ -63,14 +60,11 @@ policy = DiffusionPolicy(mode='infer',
 record_fps = 30
 sh = SharedMemoryManager()
 sh.start()
-cam = SingleRealsense(sh, "035122250692")
+cam = SingleRealsense(sh, "f1230727")
 cam.start()
-marker_detector = ArucoDetector(cam, 0.05, aruco.DICT_4X4_50, 9, visualize=False)
-
+marker_detector = ArucoDetector(cam, 0.05, aruco.DICT_4X4_50, 6, visualize=True)
 cam.set_exposure(exposure=100, gain=60)
-
 sensor_socket = SensorSocket("131.181.33.191", 5000)
-
 time.sleep(1.0)
 
 
@@ -78,7 +72,8 @@ print("Camera setup complete")
 # Setup robot
 panda = Robot("172.16.0.2")
 panda.set_dynamic_rel(0.4, accel_rel=0.005, jerk_rel=0.005)
-panda.move_to_joints([-1.595296889799552, 0.20639970338361455, 0.11555337082325448, -2.062858170994541, -0.015267791359554679, 2.2535057711421804, 0.8283025085881378])
+# panda.move_to_joints([-1.595296889799552, 0.20639970338361455, 0.11555337082325448, -2.062858170994541, -0.015267791359554679, 2.2535057711421804, 0.8283025085881378])
+panda.move_to_joints([0.00487537496966383, 0.140028320465115, -0.4990375894491169, -2.148368699077172, 1.0965412648672856, 1.1600619074643155, 0.0020968194298945724])
 
 pose = panda.get_tcp_pose()
 trans = pose[:3, 3]
@@ -86,13 +81,19 @@ z_height = trans[2]
 orien = panda.get_orientation()
 # motion = panda.start_cartesian_controller()
 
-
 # For now lets assume that the object is in a fixed location
-dataset_path = '/home/krishan/work/2024/datasets/door_open'
-with open(f'{dataset_path}/calibration/transforms.json', 'r') as f:
+with open(f'../runs/{saved_run_name}/transforms.json', 'r') as f:
     trans = json.load(f)
-    X_BO = np.array(trans['X_BO'])
     X_EC = np.array(trans['X_EC'])
+
+# save the first detection of the marker
+X_CO = marker_detector.estimate_pose()
+X_BE = panda.get_tcp_pose()
+X_BC = np.dot(X_BE, X_EC)
+X_BO = np.dot(X_BC, X_CO)
+
+pdb.set_trace()
+
 
 ################################################################################
 
@@ -116,6 +117,9 @@ def get_obs():
             "tactile_sensor": tactile_sensor, 
             "joint_torques": joint_torques, 
             "ee_forces": ee_forces}
+
+
+pdb.set_trace()
 
 
 marker_stream = rx.interval(1.0/10.0, scheduler=rx.scheduler.NewThreadScheduler()) \
