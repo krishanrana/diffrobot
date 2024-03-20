@@ -1,8 +1,8 @@
 
 
-low_dim = 9 #23
+low_dim = 15 #23
 tactile_dim = 16
-obs_dim = low_dim + tactile_dim #39
+obs_dim = low_dim #+ tactile_dim #39
 
 action_dim = 10 # 3 for position, 1 for progress
 pred_horizon = 16
