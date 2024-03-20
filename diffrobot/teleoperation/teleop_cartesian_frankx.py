@@ -1,7 +1,7 @@
 import panda_py
-from dynamixel.robot import DynamixelRobot
+from diffrobot.dynamixel.robot import DynamixelRobot
 import numpy as np
-from robot.robot import Robot, to_affine, pos_orn_to_matrix, matrix_to_affine, matrix_to_pos_orn
+from diffrobot.robot.robot import Robot, to_affine, pos_orn_to_matrix, matrix_to_affine, matrix_to_pos_orn
 import reactivex as rx
 from reactivex import operators as ops
 import time
@@ -9,6 +9,7 @@ from frankx import Waypoint
 import pdb
 from spatialmath import SE3
 import open3d as o3d
+from diffrobot.robot.visualizer import RobotViz
 
 class Teleop:
 	def __init__(self, hostname: str = "172.16.0.2"):
@@ -27,6 +28,9 @@ class Teleop:
 		self.constrain_pose = False
 		self.saved_trans = None
 		self.saved_orien = None
+
+		# self.robot_visualiser = RobotViz()
+		# self.robot_visualiser.step(self.home_q)
 	
 	def get_translation(self):
 		if self.motion:
@@ -121,6 +125,9 @@ class Teleop:
 		while not self.stop_requested:
 			gello_q = self.gello.get_joint_state()
 			pose = panda_py.fk(np.round(gello_q[:7],4))
+			robot_q = self.get_joint_positions()
+			# self.robot_visualiser.step(robot_q)
+			
 
 			# print(gello_q[-1])
 			# se3 = SE3(pose)
@@ -144,6 +151,8 @@ class Teleop:
 			#self.motion.set_next_waypoint(Waypoint(to_affine(self.trans, self.orien)))
 			self.motion.set_target(to_affine(self.trans, self.orien))
 			# self.motion.set_next_waypoint(Waypoint(pose))
+			
+
 			time.sleep(1/30.0)
 		self.stop_requested = False
 		self.motion = None
@@ -236,6 +245,6 @@ if __name__ == "__main__":
 			teleop.saved_orien = teleop.orien
 			teleop.constrain_pose = True
 
-	teleop.gello_gripper_stream_2.subscribe(lambda x: grasp(x))
+	# teleop.gello_gripper_stream_2.subscribe(lambda x: grasp(x))
 	# teleop.gello_button_stream.subscribe(lambda x: relinquish_and_home())
 	teleop.take_control()

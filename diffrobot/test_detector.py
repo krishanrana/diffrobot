@@ -4,8 +4,8 @@ from realsense.single_realsense import SingleRealsense
 
 sh = SharedMemoryManager()
 sh.start()
-cam = SingleRealsense(sh, "035122250692")
+cam = SingleRealsense(sh, "f1230727")
 cam.start()
-marker_detector = ArucoDetector(cam, 0.05, aruco.DICT_4X4_50, 8, visualize=True)
+marker_detector = ArucoDetector(cam, 0.025, aruco.DICT_4X4_50, 4, visualize=True)
 while True:
     print(marker_detector.estimate_pose())

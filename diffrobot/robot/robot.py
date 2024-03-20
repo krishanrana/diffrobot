@@ -137,6 +137,13 @@ class Robot:
         else:
             state = self.frankx.read_once()
             return np.array(state.K_F_ext_hat_K)
+        
+        
+    def get_joint_positions(self):
+        if self.motion:
+            return self.motion.get_robot_state().q
+        else:
+            return self.frankx.read_once().q
     
     
     def get_tcp_pose(self):
