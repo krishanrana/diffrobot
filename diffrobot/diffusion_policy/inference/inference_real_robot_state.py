@@ -124,7 +124,7 @@ class RobotInferenceController:
 
 
                 # print(obs_deque)
-                out = self.policy.infer_action(self.obs_deque)
+                out = self.policy.infer_action(self.obs_deque.copy())
                 self.action = out['action']
                 self.progress = out['progress']
 

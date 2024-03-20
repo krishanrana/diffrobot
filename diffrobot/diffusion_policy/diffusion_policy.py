@@ -381,11 +381,12 @@ class DiffusionPolicy():
         nprogress = normalize_data(progress, stats=self.stats['progress']).reshape(-1, 1)
 
         # robot_state = torch.from_numpy(np.concatenate([nee_pos, ee_orien, njoint_torques, nee_forces, nprogress], axis=-1)).to(self.device, dtype=self.precision)
-        robot_state = torch.from_numpy(np.concatenate([nee_pos, ee_orien], axis=-1)).to(self.device, dtype=self.precision)
+        robot_state = torch.from_numpy(np.concatenate([nee_pos, ee_orien, nee_forces], axis=-1)).to(self.device, dtype=self.precision)
         # process tactile data
-        tactile_features = self.ema_nets['tactile_encoder'](ntactile_sensor)
+        #tactile_features = self.ema_nets['tactile_encoder'](ntactile_sensor)
 
-        obs_cond = torch.cat([robot_state, tactile_features], dim=-1)
+        #obs_cond = torch.cat([robot_state, tactile_features], dim=-1)
+        obs_cond = robot_state
         obs_cond = obs_cond.flatten(start_dim=0).unsqueeze(0)
 
         return obs_cond
