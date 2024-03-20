@@ -94,6 +94,7 @@ class SensorSocket:
 
     def get_forces(self):
         if self.lastmessage["message"] != "No message":
+            # print('Got Sensor Reading!')
             self.sensor_reading = self.message_parser(self.lastmessage.copy())
             # self.visualize_sensor_data(self.sensor_reading[1])
             return self.sensor_reading

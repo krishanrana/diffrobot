@@ -1,5 +1,5 @@
-from realsense.multi_realsense import MultiRealsense
-from teleop_cartesian_frankx import Teleop
+from diffrobot.realsense.multi_realsense import MultiRealsense
+from diffrobot.teleoperation.teleop_cartesian_frankx import Teleop
 import time
 import json
 import numpy as np
@@ -49,12 +49,12 @@ class DataRecorder:
         print(x)
         if x == "open":
             self.t.gripper.open()
-            self.t.constrain_pose = False
+            # self.t.constrain_pose = False
         else:
             self.t.gripper.close()
             self.t.saved_trans = self.t.trans
             self.t.saved_orien = self.t.orien
-            self.t.constrain_pose = True
+            # self.t.constrain_pose = True
 
     def toggle_record(self):
         self.record_data = not self.record_data
@@ -119,10 +119,12 @@ class DataRecorder:
             start = time.time()
             state.append({
                 "X_BE": np.array(self.t.get_tcp_pose()).tolist(),
-                "q": np.array(self.t.get_joint_positions()).tolist(),
+                "robot_q": np.array(self.t.get_joint_positions()).tolist(),
                 "tactile_sensors": np.array(self.sensor_socket.get_forces()).tolist(),
                 "joint_torques": np.array(self.t.get_joint_torques()).tolist(),
                 "ee_forces": np.array(self.t.get_ee_forces()).tolist(),
+                "gello_q": np.array(self.t.gello.get_joint_state()[:7]).tolist(),
+                "gripper_state": self.t.gripper.width()
             })
             self.cams.record_frame()
 

@@ -367,6 +367,7 @@ class DiffusionPolicy():
         ee_pos = [x[:3,3] for x in X_OE]
         ee_orien = [matrix_to_rotation_6d(x[:3,:3]) for x in X_OE]
         tactile_sensor = [np.transpose(x['tactile_sensor'][1], (2,0,1)) for x in obs_deque] #get tactile sensor 1
+        # print(tactile_sensor[0])
         joint_torques = [x['joint_torques'] for x in obs_deque]
         ee_forces = [x['ee_forces'] for x in obs_deque]
         progress = [x['progress'] for x in obs_deque]
@@ -378,7 +379,8 @@ class DiffusionPolicy():
         nee_forces = normalize_data(ee_forces, stats=self.stats['ee_forces'])
         nprogress = normalize_data(progress, stats=self.stats['progress']).reshape(-1, 1)
 
-        robot_state = torch.from_numpy(np.concatenate([nee_pos, ee_orien, njoint_torques, nee_forces, nprogress], axis=-1)).to(self.device, dtype=self.precision)
+        # robot_state = torch.from_numpy(np.concatenate([nee_pos, ee_orien, njoint_torques, nee_forces, nprogress], axis=-1)).to(self.device, dtype=self.precision)
+        robot_state = torch.from_numpy(np.concatenate([nee_pos, ee_orien], axis=-1)).to(self.device, dtype=self.precision)
         # process tactile data
         tactile_features = self.ema_nets['tactile_encoder'](ntactile_sensor)
 
