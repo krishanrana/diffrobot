@@ -8,6 +8,9 @@ from diffrobot.tactile_sensors.xela import SensorSocket
 import tyro
 from dataclasses import dataclass
 import cv2
+from diffrobot.calibration.aruco_detector import ArucoDetector, aruco
+from reactivex import operators as ops
+from reactivex.subject import Subject
 
 
 @dataclass
@@ -33,6 +36,30 @@ class DataRecorder:
         self.toggle_key = ord(' ')  # ASCII code for space bar
         self.discard_key = ord('d')  # ASCII code for 'd'
         self.key = None
+        self.disposable = None
+        self.states = []
+
+        
+        # run at 10hz on new thread
+   
+    def record_state(self, s):
+        gello_q, robot_state, gripper_width = s["gello_q"], s["robot_state"], s["gripper_width"]
+        self.cams.record_frame()
+        state =  {
+            "X_BE": np.array(robot_state.O_T_EE).reshape(4,4).T.tolist(),
+            "robot_q": np.array(robot_state.q).tolist(),
+            "tactile_sensors": np.array(self.sensor_socket.get_forces()).tolist(),
+            "joint_torques": np.array(robot_state.tau_ext_hat_filtered).tolist(),
+            "ee_forces": np.array(robot_state.K_F_ext_hat_K).tolist(),
+            "gello_q": np.array(gello_q[:7]).tolist(),
+            "gripper_state": gripper_width
+        }
+        self.states.append(state)
+
+    def setup_streams(self):
+        self.teleop_state = Subject()
+        self.t.set_callback(lambda x: self.teleop_state.on_next(x))
+        self.record_stream = self.teleop_state.pipe(ops.sample(0.1))
         
     def setup(self):
         self.t.home_robot()
@@ -44,6 +71,8 @@ class DataRecorder:
         self.cams.start()
         self.cams.set_exposure(exposure=100, gain=60)
         self.sensor_socket = SensorSocket("131.181.33.191", 5000)
+        self.marker_detector = ArucoDetector(self.cams.cameras['f1230727'], 0.025, aruco.DICT_4X4_50, 4, visualize=True)
+        self.setup_streams()
 
     def grasp(self, x):
         print(x)
@@ -56,13 +85,28 @@ class DataRecorder:
             self.t.saved_orien = self.t.orien
             # self.t.constrain_pose = True
 
-    def toggle_record(self):
+    def toggle_record(self, discard = False):
         self.record_data = not self.record_data
         if self.record_data:
             self.demo_state_text = "Recording..."
+            self.states = []
+            path = Path(f"data/{self.params.name}/{self.idx}/video")
+            path.mkdir(parents=True, exist_ok=True)
+            self.cams.start_recording(str(path))
+            self.disposable = self.record_stream.subscribe(lambda x: self.record_state(x))
             print("Recording demonstration {}".format(self.idx))
+
         else:
             self.demo_state_text = "Resetting..."
+            if self.disposable:
+                self.disposable.dispose()
+                self.cams.stop_recording()
+                
+                if not discard:
+                    with open(f"data/{self.params.name}/{self.idx}/state.json", "w") as f:
+                        json.dump(self.states, f, indent=4)
+                    self.idx += 1
+                
             print("Recording stopped.")
             print("Resetting...")
 
@@ -87,61 +131,51 @@ class DataRecorder:
         cv2.namedWindow(self.window_name)
         cv2.moveWindow(self.window_name, 400, 400)
         while True:
-            self.key = cv2.waitKey(1) & 0xFF
-            # if key is the space bar or shift key, toggle recording
-
+            self.update_window()
+            #if not self.record_data:
+                #self.marker_detector.estimate_pose()
+            self.key = cv2.waitKey(10) & 0xFF
             if self.key == self.toggle_key:
                 self.toggle_record()
-
-            if self.record_data:
-                self._record_data()
-                # Only increment the index if the recording was not discarded
-                if self.key == self.toggle_key:
-                    self.idx += 1
-                else:
-                    print("Discarding demonstration {}".format(self.idx))
-            else:
-                time.sleep(1/self.record_fps)
-            self.update_window()
+            elif self.key == self.discard_key:
+                self.toggle_record(discard=True)
+            
                 
 
         
 
-    def _record_data(self):
-        path = Path(f"data/{self.params.name}/{self.idx}/video")
-        path.mkdir(parents=True, exist_ok=True)
-        self.cams.start_recording(str(path))
-        state = []
-        desired_time = 1.0 / self.record_fps
+    # def _record_data(self):
+    #     path = Path(f"data/{self.params.name}/{self.idx}/video")
+    #     path.mkdir(parents=True, exist_ok=True)
+    #     self.cams.start_recording(str(path))
+    #     state = []
+    #     desired_time = 1.0 / self.record_fps
+    #     self.update_window()
+    #     while self.record_data:
+    #         start = time.time()
+    #         state.append({
+    #             "X_BE": np.array(self.t.get_tcp_pose()).tolist(),
+    #             "robot_q": np.array(self.t.get_joint_positions()).tolist(),
+    #             "tactile_sensors": np.array(self.sensor_socket.get_forces()).tolist(),
+    #             "joint_torques": np.array(self.t.get_joint_torques()).tolist(),
+    #             "ee_forces": np.array(self.t.get_ee_forces()).tolist(),
+    #             "gello_q": np.array(self.t.gello.get_joint_state()[:7]).tolist(),
+    #             "gripper_state": self.t.gripper.width()
+    #         })
+    #         self.cams.record_frame()
 
-        self.update_window()
-        while self.record_data:
-            start = time.time()
-            state.append({
-                "X_BE": np.array(self.t.get_tcp_pose()).tolist(),
-                "robot_q": np.array(self.t.get_joint_positions()).tolist(),
-                "tactile_sensors": np.array(self.sensor_socket.get_forces()).tolist(),
-                "joint_torques": np.array(self.t.get_joint_torques()).tolist(),
-                "ee_forces": np.array(self.t.get_ee_forces()).tolist(),
-                "gello_q": np.array(self.t.gello.get_joint_state()[:7]).tolist(),
-                "gripper_state": self.t.gripper.width()
-            })
-            self.cams.record_frame()
+    #         self.key = cv2.pollKey() & 0xFF
+    #         if self.key == self.toggle_key or self.key == self.discard_key:
+    #             self.toggle_record()
 
-            self.key = cv2.pollKey() & 0xFF
-            if self.key == self.toggle_key or self.key == self.discard_key:
-                self.toggle_record()
+    #         duration = time.time() - start
+    #         sleep_for = max(desired_time - duration, 0)
+    #         time.sleep(sleep_for)
+    #         #print(f"Time: {time.time()-start} - Slept for {sleep_for} - Actual Freq: {1.0/(time.time()-start)} Hz - Required Freq: {self.record_fps} Hz")
 
-            duration = time.time() - start
-            sleep_for = max(desired_time - duration, 0)
-            time.sleep(sleep_for)
-            #print(f"Time: {time.time()-start} - Slept for {sleep_for} - Actual Freq: {1.0/(time.time()-start)} Hz - Required Freq: {self.record_fps} Hz")
-
-            
-
-        self.cams.stop_recording()
-        with open(f"data/{self.params.name}/{self.idx}/state.json", "w") as f:
-            json.dump(state, f, indent=4)
+    #     self.cams.stop_recording()
+    #     with open(f"data/{self.params.name}/{self.idx}/state.json", "w") as f:
+    #         json.dump(state, f, indent=4)
         
 
     def stop(self):
