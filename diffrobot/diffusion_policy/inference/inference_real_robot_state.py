@@ -107,7 +107,7 @@ class RobotInferenceController:
             .pipe(ops.map(lambda _: self.get_obs())) \
             .subscribe(lambda x: self.obs_deque.append(x))
         
-        motion = self.panda.start_impedance_controller(200, 40, 5)
+        #motion = self.panda.start_impedance_controller(200, 40, 5)
 
         # cv2.namedWindow('Inference')
 
@@ -142,11 +142,14 @@ class RobotInferenceController:
                     waypoints.append(to_affine(trans, orien))
 
                 # self.panda.recover_from_errors()
-                for waypoint in waypoints:
-                    motion.set_target(waypoint)
+                # for i, waypoint in enumerate(waypoints):
+                #     motion.set_target(waypoint)
 
-                    robot_q = self.panda.get_joint_positions()
-                    self.robot_visualiser.step(robot_q)
+                #     robot_q = self.panda.get_joint_positions()
+
+                #     self.robot_visualiser.ee_pose.T = self.panda.get_tcp_pose()
+                #     self.robot_visualiser.policy_pose.T = self.action[i]    
+                #     self.robot_visualiser.step(robot_q)
                     
                     # self.key = cv2.waitKey(100) & 0xFF
                     # if self.key == self.toggle_key:
@@ -155,9 +158,11 @@ class RobotInferenceController:
                     #     #self.obs_deque.clear()
                         
                     #     break
-
- 
-                # self.panda.waypoints(waypoints)
+                self.robot_visualiser.ee_pose.T = self.panda.get_tcp_pose()
+                self.robot_visualiser.policy_pose.T = self.action[-1]  
+                robot_q = self.panda.get_joint_positions()  
+                self.robot_visualiser.step(robot_q)
+                self.panda.waypoints(waypoints[:-1])
 
                 
                 
@@ -165,7 +170,7 @@ class RobotInferenceController:
 
 
 # Example usage
-controller = RobotInferenceController(saved_run_name='royal-aardvark-41_state',
+controller = RobotInferenceController(saved_run_name='ethereal-cherry-42_state',
                                       robot_ip='172.16.0.2', 
                                       sensor_ip='131.181.33.191', 
                                       sensor_port=5000)

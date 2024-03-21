@@ -4,12 +4,14 @@ import numpy as np
 from diffrobot.robot.robot import Robot, to_affine, pos_orn_to_matrix, matrix_to_affine, matrix_to_pos_orn
 import reactivex as rx
 from reactivex import operators as ops
+
 import time
 from frankx import Waypoint
 import pdb
 from spatialmath import SE3
 import open3d as o3d
 from diffrobot.robot.visualizer import RobotViz
+from diffrobot.tactile_sensors.xela import SensorSocket
 
 class Teleop:
 	def __init__(self, hostname: str = "172.16.0.2"):
@@ -28,10 +30,15 @@ class Teleop:
 		self.constrain_pose = False
 		self.saved_trans = None
 		self.saved_orien = None
+		self._callback = None
+
 
 		# self.robot_visualiser = RobotViz()
 		# self.robot_visualiser.step(self.home_q)
-	
+
+	def set_callback(self, callback):
+		self._callback = callback
+
 	def get_translation(self):
 		if self.motion:
 			return self.motion.current_pose().translation()
@@ -126,8 +133,18 @@ class Teleop:
 			gello_q = self.gello.get_joint_state()
 			pose = panda_py.fk(np.round(gello_q[:7],4))
 			robot_q = self.get_joint_positions()
+			robot_state = self.motion.get_robot_state()
+			gripper_width = self.gripper.width()
+	
+
+			if self._callback:
+				x= {"robot_state": robot_state,
+				"gello_q": robot_q,
+				"gripper_width": gripper_width}
+				self._callback(x)
+
 			# self.robot_visualiser.step(robot_q)
-			
+
 
 			# print(gello_q[-1])
 			# se3 = SE3(pose)
@@ -196,7 +213,7 @@ def create_gello() -> DynamixelRobot:
 				joint_offsets=(
 					4 * np.pi / 2,
 					2 * np.pi / 2,
-					0 * np.pi / 2,
+					4 * np.pi / 2,
 					2 * np.pi / 2,
 					2 * np.pi / 2,
 					2 * np.pi / 2,
