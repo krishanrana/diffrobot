@@ -256,7 +256,6 @@ def parse_dataset(dataset_path:str):
             # convert joint positions to pose of tool centre point
             gello_pose = robot.fkine(gello_q, "panda_link8") * X_FE
             temp_gello.append(gello_pose.A)
-
         
         ee_poses.append(temp_poses)
         tactile_data.append(temp_tactile)
@@ -317,12 +316,12 @@ def extract_goal_poses(dataset_path:str):
 
 
 
-fpath = "/home/krishan/work/2024/datasets/door_open_v2"
+# fpath = "/home/krishan/work/2024/datasets/door_open_v2.0"
 # decode_video(fpath)
-#detect_aruco_markers(fpath)
+# detect_aruco_markers(fpath)
 # out = extract_robot_poses(fpath)
 # out = extract_goal_poses(fpath)
 # compute_transforms(fpath)
-out = parse_dataset(fpath)
+# out = parse_dataset(fpath)
 
   

@@ -96,12 +96,10 @@ class DiffusionStateDataset(torch.utils.data.Dataset):
         stats = dict()
         # stats["goals"] = get_data_stats(self.all_goals)
         stats["ee_positions"] = get_data_stats(self.all_ee_pos)
-        stats["ee_orientations"] = get_data_stats(self.all_ee_orien)
         stats["joint_torques"] = get_data_stats(self.all_joint_torques)
         stats["ee_forces"] = get_data_stats(self.all_ee_forces)
         stats["progress"] = get_data_stats(self.all_progress)
         stats["ee_positions_gello"] = get_data_stats(self.all_gello_pos)
-        stats["ee_orientations_gello"] = get_data_stats(self.all_gello_orien)
 
         stats["tactile_data"] = {
             'min': 0.0,
