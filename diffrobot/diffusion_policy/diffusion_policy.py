@@ -498,11 +498,15 @@ class DiffusionPolicy():
 
 
 if __name__ == '__main__':
+
+    run_info = input('Whats special about this run?')
     policy = DiffusionPolicy(mode='train', 
                              policy_type='state', 
                              config_file='config_state_pretrain', 
                              finetune=False, 
                              saved_run_name=None)
-
+    
+    wandb.run.notes = run_info
+    
     policy.train_policy()
     # policy.infer_action(obs_deque)

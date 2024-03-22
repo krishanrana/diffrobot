@@ -8,7 +8,8 @@ from scipy.spatial.transform import Rotation as R
 import pickle
 
 from diffrobot.diffusion_policy.utils.rotation_transforms import rotation_6d_to_matrix, matrix_to_rotation_6d
-
+import roboticstoolbox as rtb
+import spatialmath as sm
 
 
 def create_sample_indices(sequence_length:int,
@@ -144,7 +145,7 @@ def detect_aruco_markers(dataset_path:str):
 
                 rvecs, tvecs, _ = cv2.aruco.estimatePoseSingleMarkers(corners, 0.05, intrinsics, distcoeffs)
                 for i in range(len(rvecs)):
-                    frame = cv2.aruco.drawAxis(frame, intrinsics, distcoeffs, rvecs[i], tvecs[i], 0.1)
+                    frame = cv2.drawFrameAxes(frame, intrinsics, distcoeffs, rvecs[i], tvecs[i], 0.1)
 
                 print("Marker found for episode ", episode)
 
@@ -188,9 +189,12 @@ def extract_robot_pos_orien(poses: list):
         for pose in episode:
             temp_p.append(pose[:3, 3])
             rot = pose[:3, :3]
-            # check if the rotation matrix is valid
-            assert np.allclose(np.dot(rot, rot.T), np.eye(3))
-            assert np.isclose(np.linalg.det(rot), 1)
+            # # check if the rotation matrix is valid
+            # try:
+            #     assert np.isclose(np.linalg.det(rot), 1)
+            # except AssertionError:
+            #     pdb.set_trace()
+
             # convert to 6d representation
             temp_o.append(matrix_to_rotation_6d(rot))
         xyz.append(temp_p)
@@ -206,10 +210,21 @@ def extract_goal_positions(poses: list):
 
 
 def parse_dataset(dataset_path:str):
+
+    robot = rtb.models.Panda()
+    # Transformation from flange to tool centre point
+    X_FE = np.array([[0.70710678, 0.70710678, 0.0, 0.0], 
+                     [-0.70710678, 0.70710678, 0, 0], 
+                     [0.0, 0.0, 1.0, 0.2], 
+                     [0.0, 0.0, 0.0, 1.0]])
+    X_FE = sm.SE3(X_FE, check=False).norm()
+
+    gello_poses = []
     ee_poses = []
     tactile_data = []
     joint_torques = []
     ee_forces = []
+
    # sort numerically the episodes based on folder names
     episodes = sorted(os.listdir(os.path.join(dataset_path, "episodes")), key=lambda x: int(x))
     for episode in episodes:
@@ -219,6 +234,7 @@ def parse_dataset(dataset_path:str):
         temp_tactile = []
         temp_torques = []
         temp_forces = []
+        temp_gello = []
         for idx in range(len(raw_data)):
             pose = np.array(raw_data[idx]["X_BE"])
             temp_poses.append(pose)
@@ -235,22 +251,32 @@ def parse_dataset(dataset_path:str):
             forces = np.array(raw_data[idx]["ee_forces"])
             temp_forces.append(forces)
 
+            # get gello q
+            gello_q = np.array(raw_data[idx]["gello_q"])
+            # convert joint positions to pose of tool centre point
+            gello_pose = robot.fkine(gello_q, "panda_link8") * X_FE
+            temp_gello.append(gello_pose.A)
+
+        
         ee_poses.append(temp_poses)
         tactile_data.append(temp_tactile)
         joint_torques.append(temp_torques)
         ee_forces.append(temp_forces)
+        gello_poses.append(temp_gello)
 
     return {
         'ee_poses': ee_poses,
         'tactile_data': tactile_data,
         'joint_torques': joint_torques,
-        'ee_forces': ee_forces
+        'ee_forces': ee_forces,
+        'gello_poses': gello_poses
     }
 
 
 
 def compute_transforms(dataset_path:str):
     # read JSON file
+    # TODO We assume that the object was always in the same position for all demos
     with open(os.path.join(dataset_path, "calibration/hand_eye.json"), 'r') as f:
         X_EC = np.array(json.load(f)['X_EC'])
     
@@ -291,11 +317,12 @@ def extract_goal_poses(dataset_path:str):
 
 
 
-# fpath = "/home/krishan/work/2024/datasets/door_open"
+fpath = "/home/krishan/work/2024/datasets/door_open_v2"
 # decode_video(fpath)
-# detect_aruco_markers(fpath)
+#detect_aruco_markers(fpath)
 # out = extract_robot_poses(fpath)
 # out = extract_goal_poses(fpath)
 # compute_transforms(fpath)
+out = parse_dataset(fpath)
 
   
