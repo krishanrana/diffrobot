@@ -132,14 +132,13 @@ class Teleop:
 		while not self.stop_requested:
 			gello_q = self.gello.get_joint_state()
 			pose = panda_py.fk(np.round(gello_q[:7],4))
-			robot_q = self.get_joint_positions()
 			robot_state = self.motion.get_robot_state()
 			gripper_width = self.gripper.width()
 	
 
 			if self._callback:
 				x= {"robot_state": robot_state,
-				"gello_q": robot_q,
+				"gello_q": gello_q,
 				"gripper_width": gripper_width}
 				self._callback(x)
 
