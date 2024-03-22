@@ -463,8 +463,7 @@ class DiffusionPolicy():
         action_progress = naction[:,9]
 
         # unnormalize action
-        action_pos = unnormalize_data(action_pos, stats=self.stats['ee_positions'])
-        action_orien = unnormalize_data(action_orien, stats=self.stats['ee_orientations'])
+        action_pos = unnormalize_data(action_pos, stats=self.stats['ee_positions_gello'])
         action_progress = unnormalize_data(action_progress, stats=self.stats['progress'])
 
         # convert orientation to rotation matrix
@@ -499,7 +498,7 @@ class DiffusionPolicy():
 
 if __name__ == '__main__':
 
-    run_info = input('Whats special about this run?')
+    run_info = input('Whats special about this run? ')
     policy = DiffusionPolicy(mode='train', 
                              policy_type='state', 
                              config_file='config_state_pretrain', 

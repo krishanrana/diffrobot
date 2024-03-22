@@ -23,4 +23,4 @@ num_warmup_steps = 500
 
 action_frame = 'object_centric' # 'absolute', 'end-effector', 'deltas'
 
-dataset_path = "/home/krishan/work/2024/datasets/door_open_v2"
+dataset_path = "/home/krishan/work/2024/datasets/door_open_v2.0"
