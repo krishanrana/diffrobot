@@ -45,6 +45,7 @@ class DiffusionStateDataset(torch.utils.data.Dataset):
 
         if self.action_frame == 'global':
             self.all_ee_poses = self.all_data['ee_poses']
+            self.all_gello_poses = self.all_data['gello_poses']
 
         # transform all robot state poses to the object(goal) frame
         if self.action_frame == 'object_centric':

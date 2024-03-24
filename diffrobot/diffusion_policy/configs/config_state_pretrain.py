@@ -21,6 +21,6 @@ lr_scheduler_profile = 'cosine'
 weight_decay = 1e-6
 num_warmup_steps = 500
 
-action_frame = 'object_centric' # 'absolute', 'end-effector', 'deltas'
+action_frame = 'global' # 'global' or 'object_centric'
 
 dataset_path = "/home/krishan/work/2024/datasets/door_open_v2.0"
