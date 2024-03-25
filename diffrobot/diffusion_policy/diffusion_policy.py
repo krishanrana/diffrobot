@@ -42,6 +42,8 @@ class DiffusionPolicy():
         self.mode = mode
         self.precision = torch.float32
 
+        print('Using {} action frame'.format(self.params.action_frame))
+
         # create network object
         self.noise_pred_net = ConditionalUnet1D(
                         input_dim=self.params.action_dim,
@@ -364,9 +366,14 @@ class DiffusionPolicy():
 
     def process_inference_state(self, obs_deque):
 
-        X_OE = [np.dot(np.linalg.inv(o['X_BO']), o['X_BE']) for o in obs_deque]
-        ee_pos = [x[:3,3] for x in X_OE]
-        ee_orien = [matrix_to_rotation_6d(x[:3,:3]) for x in X_OE]
+        # X_OE = [np.dot(np.linalg.inv(o['X_BO']), o['X_BE']) for o in obs_deque]
+        if self.params.action_frame == 'object_centric':
+            ee_pose = [np.dot(np.linalg.inv(o['X_BO']), o['X_BE']) for o in obs_deque]
+        elif self.params.action_frame == 'global':
+            ee_pose = [o['X_BE'] for o in obs_deque]
+
+        ee_pos = [x[:3,3] for x in ee_pose]
+        ee_orien = [matrix_to_rotation_6d(x[:3,:3]) for x in ee_pose]
         tactile_sensor = [np.transpose(x['tactile_sensor'][1], (2,0,1)) for x in obs_deque] #get tactile sensor 1
         # print(tactile_sensor[0])
         joint_torques = [x['joint_torques'] for x in obs_deque]
@@ -490,6 +497,9 @@ class DiffusionPolicy():
 
             X_BO = obs_deque[0]['X_BO']
             X_BE = np.array([np.dot(X_BO, X_OE) for X_OE in action])
+
+        elif self.params.action_frame == 'global':
+            X_BE = action
 
         return {'action': X_BE, 
                 'progress': progress}
