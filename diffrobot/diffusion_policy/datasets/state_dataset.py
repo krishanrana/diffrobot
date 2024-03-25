@@ -154,7 +154,7 @@ class DiffusionStateDataset(torch.utils.data.Dataset):
 
         # create a state tensor - exclude tactile data for now
         # robot_state = np.concatenate([ee_pos, ee_orien, joint_torques, ee_forces, progress], axis=-1)
-        robot_state = np.concatenate([ee_pos, ee_orien, ee_forces], axis=-1)
+        robot_state = np.concatenate([ee_pos, ee_orien], axis=-1)
 
         # action data  #TODO: do we shift by 1 or not
         action_pos = self.normalized_train_data['ee_positions_gello'][episode][start_idx:end_idx] 
