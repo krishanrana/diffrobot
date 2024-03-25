@@ -55,7 +55,7 @@ class DiffusionPolicy():
 
         # the final arch has 2 parts
         self.nets = nn.ModuleDict({
-        #'tactile_encoder': self.tactile_encoder,
+        'tactile_encoder': self.tactile_encoder,
         'noise_pred_net': self.noise_pred_net
         })
 
@@ -237,14 +237,15 @@ class DiffusionPolicy():
         nstate = nbatch['state'].to(self.device, dtype=self.precision)
         naction = nbatch['action'].to(self.device, dtype=self.precision)
         # ntactile_0 = nbatch['tactile_0'].to(self.device, dtype=self.precision)
-        # ntactile_1 = nbatch['tactile_1'].to(self.device, dtype=self.precision)
+        ntactile_1 = nbatch['tactile_1'].to(self.device, dtype=self.precision)
 
         # process tactile data
-        # tactile_features = self.nets['tactile_encoder'](ntactile_1.flatten(end_dim=1)).reshape(*ntactile_1.shape[:2], -1)
+        tactile_features = self.nets['tactile_encoder'](ntactile_1.flatten(end_dim=1)).reshape(*ntactile_1.shape[:2], -1)
 
-        # obs_cond = torch.cat([nstate, tactile_features], dim=-1)
-        obs_cond = nstate
+        obs_cond = torch.cat([nstate, tactile_features], dim=-1)
+        # obs_cond = nstate
         obs_cond = obs_cond.flatten(start_dim=1)
+
         
         return obs_cond, naction
     
@@ -381,12 +382,12 @@ class DiffusionPolicy():
         nprogress = normalize_data(progress, stats=self.stats['progress']).reshape(-1, 1)
 
         # robot_state = torch.from_numpy(np.concatenate([nee_pos, ee_orien, njoint_torques, nee_forces, nprogress], axis=-1)).to(self.device, dtype=self.precision)
-        robot_state = torch.from_numpy(np.concatenate([nee_pos, ee_orien, nee_forces], axis=-1)).to(self.device, dtype=self.precision)
+        robot_state = torch.from_numpy(np.concatenate([nee_pos, ee_orien], axis=-1)).to(self.device, dtype=self.precision)
         # process tactile data
-        #tactile_features = self.ema_nets['tactile_encoder'](ntactile_sensor)
+        tactile_features = self.ema_nets['tactile_encoder'](ntactile_sensor)
 
-        #obs_cond = torch.cat([robot_state, tactile_features], dim=-1)
-        obs_cond = robot_state
+        obs_cond = torch.cat([robot_state, tactile_features], dim=-1)
+        #obs_cond = robot_state
         obs_cond = obs_cond.flatten(start_dim=0).unsqueeze(0)
 
         return obs_cond
