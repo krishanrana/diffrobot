@@ -163,6 +163,7 @@ class Robot:
     def start_cartesian_controller(self):
         motion = WaypointMotion([Waypoint(self.frankx.current_pose())], return_when_finished=False)
         thread = self.frankx.move_async(motion)
+        self.motion = motion
         return motion
 
     def start_impedance_controller(self, trans_stiffness=200.0, rot_stiffness=10.0, nullspace_stiffness=1.0):
