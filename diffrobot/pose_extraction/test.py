@@ -26,6 +26,10 @@ model_type='dino_vits8' #@param
 #@markdown Choose stride:
 stride=4 #@param
 
+# apply a mask to the image to extract the region of interest
+# then apply the model to extract the descriptors and find the correspondences
+
+
 with torch.no_grad():
     points1, points2, image1_pil, image2_pil = find_correspondences(image_path1, image_path2, num_pairs, load_size, layer,
                                                                    facet, bin, thresh, model_type, stride)
