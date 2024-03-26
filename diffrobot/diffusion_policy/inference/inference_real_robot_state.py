@@ -60,7 +60,7 @@ class RobotInferenceController:
         # self.panda.set_dynamic_rel(1.0, accel_rel=0.2, jerk_rel=0.05)
         # self.panda.set_dynamic_rel(0.4, accel_rel=0.005, jerk_rel=0.05)
 
-        self.panda.set_dynamic_rel(0.4, accel_rel=0.2, jerk_rel=0.05)
+        self.panda.set_dynamic_rel(0.1, accel_rel=0.2, jerk_rel=0.05)
         self.panda.frankx.set_collision_behavior(
 			[30.0, 30.0, 30.0, 30.0, 30.0, 30.0, 30.0],
 			[30.0, 30.0, 30.0, 30.0, 30.0, 30.0, 30.0],
@@ -170,8 +170,12 @@ class RobotInferenceController:
                     #     print('I think im done with the task!')
                     #     input('Should I continue?')
                     #     self.progress = np.zeros((self.params.action_horizon))
+                    X_FE = np.array([[0.70710678, 0.70710678, 0.0, 0.0], 
+                        [-0.70710678, 0.70710678, 0, 0], 
+                        [0.0, 0.0, 1.0, 0.2], 
+                        [0.0, 0.0, 0.0, 1.0]])
 
-                    trans, orien = matrix_to_pos_orn(self.action[i])
+                    trans, orien = matrix_to_pos_orn(self.action[i]@X_FE)
                     motion.set_target(to_affine(trans, orien))
 
                     robot_q = self.panda.get_joint_positions()

@@ -12,6 +12,7 @@ from spatialmath import SE3
 import open3d as o3d
 from diffrobot.robot.visualizer import RobotViz
 from diffrobot.tactile_sensors.xela import SensorSocket
+import spatialmath as sm
 
 class Teleop:
 	def __init__(self, hostname: str = "172.16.0.2"):
@@ -33,8 +34,8 @@ class Teleop:
 		self._callback = None
 
 
-		# self.robot_visualiser = RobotViz()
-		# self.robot_visualiser.step(self.home_q)
+		self.robot_visualiser = RobotViz()
+		self.robot_visualiser.step(self.home_q, self.home_q)
 
 	def set_callback(self, callback):
 		self._callback = callback
@@ -127,14 +128,19 @@ class Teleop:
 			[30.0, 30.0, 30.0, 30.0, 30.0, 30.0]
 		)
 		#self.panda.frankx.set_cartesian_impedance([30.0,30.0,30.0,10.0,10.0,10.0])
-		#self.motion = self.panda.start_cartesian_controller()
+		# self.motion = self.panda.start_cartesian_controller()
 		self.motion = self.panda.start_impedance_controller(200, 40, 5)
 		while not self.stop_requested:
 			gello_q = self.gello.get_joint_state()
-			pose = panda_py.fk(np.round(gello_q[:7],4))
+			pose = self.robot_visualiser.robot.fkine(np.array(gello_q[:7]), "panda_link8") * self.robot_visualiser.X_FE
+			pose = pose.A
+			# pose = panda_py.fk(np.round(gello_q[:7],4)) @ self.
 			robot_state = self.motion.get_robot_state()
 			gripper_width = self.gripper.width()
-	
+
+			# check if robot_state is close to zeros all the values
+			if np.all(np.abs(robot_state.O_T_EE) < 0.01):
+				continue	
 
 			if self._callback:
 				x= {"robot_state": robot_state,
@@ -142,7 +148,15 @@ class Teleop:
 				"gripper_width": gripper_width}
 				self._callback(x)
 
-			# self.robot_visualiser.step(robot_q)
+			print(robot_state.O_T_EE)
+			self.robot_visualiser.ee_pose.T = sm.SE3((np.array(robot_state.O_T_EE)).reshape(4,4).T, check=False).norm()
+			print(gello_q)
+			# import pdb; pdb.set_trace()
+			target_pose = self.robot_visualiser.robot.fkine(np.array(gello_q[:7]), "panda_link8") * self.robot_visualiser.X_FE
+				
+			self.robot_visualiser.policy_pose.T = target_pose 
+			self.robot_visualiser.step(robot_state.q, gello_q[:7])
+
 
 
 			# print(gello_q[-1])
@@ -164,7 +178,7 @@ class Teleop:
 			# trans[2] = z_height
 			#print(np.array(self.motion.get_robot_state().tau_ext_hat_filtered).round(3))
 			# print(np.array(self.motion.get_robot_state().K_F_ext_hat_K).round(3))
-			#self.motion.set_next_waypoint(Waypoint(to_affine(self.trans, self.orien)))
+			# self.motion.set_next_waypoint(Waypoint(to_affine(self.trans, self.orien)))
 			self.motion.set_target(to_affine(self.trans, self.orien))
 			# self.motion.set_next_waypoint(Waypoint(pose))
 			
@@ -210,7 +224,7 @@ def create_gello() -> DynamixelRobot:
 				real=True,
 				joint_ids=(1, 2, 3, 4, 5, 6, 7),
 				joint_offsets=(
-					4 * np.pi / 2,
+					0 * np.pi / 2,
 					2 * np.pi / 2,
 					4 * np.pi / 2,
 					2 * np.pi / 2,
