@@ -132,9 +132,7 @@ class Teleop:
 		self.motion = self.panda.start_impedance_controller(200, 40, 5)
 		while not self.stop_requested:
 			gello_q = self.gello.get_joint_state()
-			pose = self.robot_visualiser.robot.fkine(np.array(gello_q[:7]), "panda_link8") * self.robot_visualiser.X_FE
-			pose = pose.A
-			# pose = panda_py.fk(np.round(gello_q[:7],4)) @ self.
+			# pose = panda_py.fk(np.round(gello_q[:7],4))
 			robot_state = self.motion.get_robot_state()
 			gripper_width = self.gripper.width()
 
@@ -148,42 +146,25 @@ class Teleop:
 				"gripper_width": gripper_width}
 				self._callback(x)
 
-			print(robot_state.O_T_EE)
 			self.robot_visualiser.ee_pose.T = sm.SE3((np.array(robot_state.O_T_EE)).reshape(4,4).T, check=False).norm()
-			print(gello_q)
 			# import pdb; pdb.set_trace()
 			target_pose = self.robot_visualiser.robot.fkine(np.array(gello_q[:7]), "panda_link8") * self.robot_visualiser.X_FE
+			target_pose = target_pose.A
 				
 			self.robot_visualiser.policy_pose.T = target_pose 
 			self.robot_visualiser.step(robot_state.q, gello_q[:7])
-
-
-
-			# print(gello_q[-1])
-			# se3 = SE3(pose)
-
-			# print('Gello: ', gello_q[:7])
-			# print('Franka: ', self.panda.get_joints())
-
-			# poses_matrices = [temp_pose, pose]
-			# self.visualise_poses(poses_matrices)
 			
-			self.trans, self.orien = matrix_to_pos_orn(pose)
+			self.trans, self.orien = matrix_to_pos_orn(target_pose)
 
 			if self.constrain_pose:
 				self.orien = self.saved_orien
 				self.trans[2] = self.saved_trans[2]
 
-			# print(orien)
-			# trans[2] = z_height
-			#print(np.array(self.motion.get_robot_state().tau_ext_hat_filtered).round(3))
-			# print(np.array(self.motion.get_robot_state().K_F_ext_hat_K).round(3))
 			# self.motion.set_next_waypoint(Waypoint(to_affine(self.trans, self.orien)))
 			self.motion.set_target(to_affine(self.trans, self.orien))
-			# self.motion.set_next_waypoint(Waypoint(pose))
-			
-
+			# self.motion.set_next_waypoint(Waypoint(target_pose))
 			time.sleep(1/30.0)
+			
 		self.stop_requested = False
 		self.motion = None
 		print("--------RELINQUISHED CONTROL-------")
