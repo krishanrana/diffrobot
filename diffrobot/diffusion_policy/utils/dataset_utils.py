@@ -215,7 +215,7 @@ def parse_dataset(dataset_path:str):
     # Transformation from flange to tool centre point
     X_FE = np.array([[0.70710678, 0.70710678, 0.0, 0.0], 
                      [-0.70710678, 0.70710678, 0, 0], 
-                     [0.0, 0.0, 1.0, 0.2], 
+                     [0.0, 0.0, 1.0, 0.2], #TODO: change this back to 0.2
                      [0.0, 0.0, 0.0, 1.0]])
     X_FE = sm.SE3(X_FE, check=False).norm()
 
