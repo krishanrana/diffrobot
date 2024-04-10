@@ -467,7 +467,7 @@ class DiffusionPolicy():
                 ).prev_sample
         
         # unnormalize action
-        naction = naction.detach().to('cpu').numpy()[0]
+        naction = naction.detach().to('cpu').numpy()[0] # X_OE
 
         # extract components
         action_pos = naction[:,:3]

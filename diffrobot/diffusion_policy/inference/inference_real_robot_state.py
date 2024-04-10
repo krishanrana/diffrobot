@@ -197,7 +197,7 @@ class RobotInferenceController:
 
 
 # Example usage
-controller = RobotInferenceController(saved_run_name='desert-jazz-60_state',
+controller = RobotInferenceController(saved_run_name='dainty-leaf-61_state',
                                       robot_ip='172.16.0.2', 
                                       sensor_ip='131.181.33.191', 
                                       sensor_port=5000)
