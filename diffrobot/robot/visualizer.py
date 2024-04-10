@@ -31,5 +31,5 @@ class RobotViz():
     
     def step(self, q, gello_q=None):
         self.robot.q = q
-        # self.gello.q = gello_q
+        self.gello.q = gello_q
         self.env.step()
