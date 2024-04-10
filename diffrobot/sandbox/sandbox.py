@@ -3,12 +3,12 @@
 # import numpy as np
 # import cv2
 
-from realsense.single_realsense import SingleRealsense
-from calibration.aruco_detector import ArucoDetector, aruco
-from multiprocessing.managers import SharedMemoryManager
+# from realsense.single_realsense import SingleRealsense
+# from calibration.aruco_detector import ArucoDetector, aruco
+# from multiprocessing.managers import SharedMemoryManager
 
 
-from robot.robot import Robot, to_affine, pos_orn_to_matrix
+from diffrobot.robot.robot import Robot, to_affine, pos_orn_to_matrix
 # from frankx import Affine, JointMotion, Waypoint, WaypointMotion, PathMotion
 # import pdb
 
