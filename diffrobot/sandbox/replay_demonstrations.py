@@ -42,21 +42,24 @@ for episode in episodes:
         if object_data[idx]["X_BO"] is not None:
             if idx == 0:
                 X_BO = np.array(object_data[idx]["X_BO"])
+                dist = np.dot(np.array([0,0,1]), X_BO[:3,2])
+                # print(dist)
             else:
                 temp = np.array(object_data[idx]["X_BO"])
                 dist = np.dot(np.array([0,0,1]), temp[:3,2])
-                if dist > 0.98:
+                if dist > 0.99:
+                    print(dist)
                     X_BO = temp
 
 
         env.ee_pose.T = sm.SE3(X_BE, check=False).norm()
         target_pose = env.robot.fkine(state["gello_q"], "panda_link8") * X_FE
-        # env.policy_pose.T = target_pose 
+        env.policy_pose.T = target_pose 
         env.object_pose.T = sm.SE3(X_BO, check=False).norm()
         env.step(state["robot_q"])
         time.sleep(0.1)
 
-    pdb.set_trace()
+    # pdb.set_trace()
 
     
     
