@@ -474,8 +474,6 @@ class DiffusionPolicy():
         action_orien = naction[:,3:9]
         action_progress = naction[:,9]
 
-        pdb.set_trace()
-
         # unnormalize action
         action_pos = unnormalize_data(action_pos, stats=self.stats['ee_positions_gello'])
         action_progress = unnormalize_data(action_progress, stats=self.stats['progress'])
