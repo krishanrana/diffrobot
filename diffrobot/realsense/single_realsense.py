@@ -467,7 +467,20 @@ class SingleRealsense(mp.Process):
                 depth_sensor = pipeline_profile.get_device().first_depth_sensor()
                 if self.serial_number.startswith('f'):
                     depth_sensor.set_option(rs.option.visual_preset,  int(rs.l500_visual_preset.short_range))
-                    depth_sensor.set_option(rs.option.confidence_threshold, 3)
+                    confidence_threshold = 1.0
+                    depth_sensor.set_option(rs.option.confidence_threshold, confidence_threshold)
+                    # Custom settings
+                    noise_filtering = 6.0
+                    depth_sensor.set_option(rs.option.noise_filtering, noise_filtering)
+                    laser_power = 100.0
+                    depth_sensor.set_option(rs.option.laser_power, laser_power)
+                    receiver_gain = 12.0
+                    depth_sensor.set_option(rs.option.receiver_gain, receiver_gain)
+                    #post process sharpening
+                    post_sharpening = 1.0
+                    depth_sensor.set_option(rs.option.post_processing_sharpening, post_sharpening)
+                    pre_sharpening = 2.0
+                    depth_sensor.set_option(rs.option.pre_processing_sharpening, pre_sharpening)
 
                 depth_scale = depth_sensor.get_depth_scale()
                 self.intrinsics_array.get()[-1] = depth_scale

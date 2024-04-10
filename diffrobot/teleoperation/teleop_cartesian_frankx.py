@@ -22,8 +22,8 @@ class Teleop:
 		
 
 		self.gello = create_gello()
-		# self.home_q = np.deg2rad([-90, 0, 0, -90, 0, 90, 45]) # left
-		self.home_q = np.deg2rad([0, 0, 0, -90, 0, 90, 45]) # front
+		self.home_q = np.deg2rad([-90, 0, 0, -90, 0, 90, 45]) # left
+		# self.home_q = np.deg2rad([0, 0, 0, -90, 0, 90, 45]) # front
 		self.stop_requested = False
 		self.motion = None
 		self.create_gello_streams()
@@ -35,7 +35,7 @@ class Teleop:
 
 
 		self.robot_visualiser = RobotViz()
-		self.robot_visualiser.step(self.home_q, self.home_q)
+		# self.robot_visualiser.step(self.home_q, self.home_q)
 
 	def set_callback(self, callback):
 		self._callback = callback
@@ -129,7 +129,7 @@ class Teleop:
 		)
 		#self.panda.frankx.set_cartesian_impedance([30.0,30.0,30.0,10.0,10.0,10.0])
 		# self.motion = self.panda.start_cartesian_controller()
-		self.motion = self.panda.start_impedance_controller(200, 40, 5)
+		self.motion = self.panda.start_impedance_controller(200, 30, 5)
 		while not self.stop_requested:
 			gello_q = self.gello.get_joint_state()
 			# pose = panda_py.fk(np.round(gello_q[:7],4))
@@ -146,13 +146,14 @@ class Teleop:
 				"gripper_width": gripper_width}
 				self._callback(x)
 
-			self.robot_visualiser.ee_pose.T = sm.SE3((np.array(robot_state.O_T_EE)).reshape(4,4).T, check=False).norm()
+			
 			# import pdb; pdb.set_trace()
 			target_pose = self.robot_visualiser.robot.fkine(np.array(gello_q[:7]), "panda_link8") * self.robot_visualiser.X_FE
 			target_pose = target_pose.A
-				
-			self.robot_visualiser.policy_pose.T = target_pose 
-			self.robot_visualiser.step(robot_state.q, gello_q[:7])
+
+			# self.robot_visualiser.ee_pose.T = sm.SE3((np.array(robot_state.O_T_EE)).reshape(4,4).T, check=False).norm()	
+			# self.robot_visualiser.policy_pose.T = target_pose 
+			# self.robot_visualiser.step(robot_state.q, gello_q[:7])
 			
 			self.trans, self.orien = matrix_to_pos_orn(target_pose)
 
@@ -205,7 +206,7 @@ def create_gello() -> DynamixelRobot:
 				real=True,
 				joint_ids=(1, 2, 3, 4, 5, 6, 7),
 				joint_offsets=(
-					0 * np.pi / 2,
+					5 * np.pi / 2,
 					2 * np.pi / 2,
 					4 * np.pi / 2,
 					2 * np.pi / 2,
