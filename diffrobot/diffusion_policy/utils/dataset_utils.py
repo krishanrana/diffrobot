@@ -102,7 +102,10 @@ def decode_video(dataset_path:str):
 def detect_aruco_markers(dataset_path:str):
     intrinsics_fpath = os.path.join(dataset_path, "calibration/hand_eye.json")
     with open(intrinsics_fpath, 'r') as f:
-        intrinsics = np.array(json.load(f)['intrinsics'])
+        meta_data = json.load(f)
+        intrinsics = np.array(meta_data['intrinsics'])
+        X_FC = np.array(meta_data["X_FC"])
+        X_FE = np.array(meta_data["X_FE"])
 
     # sort numerically the episodes based on folder names
     episodes = sorted(os.listdir(os.path.join(dataset_path, "episodes")), key=lambda x: int(x))
@@ -113,11 +116,18 @@ def detect_aruco_markers(dataset_path:str):
         # Paths to the image files
         video_dir = os.path.join(dataset_path, "episodes", str(episode), "video", "0.mp4")
 
+        episode_path = os.path.join(dataset_path, "episodes", episode, "state.json")
+        with open(episode_path, "r") as f:
+            state_data = json.load(f)
+
         # read frames
         cap = cv2.VideoCapture(video_dir)
         tvecs = None
         ret = True
         frame_id = -1
+
+        detection_list = []
+        saved_first_frame = False
 
         while ret:
             ret, frame = cap.read()
@@ -127,12 +137,20 @@ def detect_aruco_markers(dataset_path:str):
             # detect markers
             corners, ids, rejectedImgPoints = cv2.aruco.detectMarkers(frame, aruco_dict, parameters=parameters)
 
+            X_BE = np.array(state_data[frame_id]["X_BE"])
+            X_BF = np.dot(X_BE, np.linalg.inv(X_FE))
+            X_BC = np.dot(X_BF, X_FC)
+
             if ids is None:
                 # print("No markers found for episode ", episode)
+                detection_list.append({
+                    'X_BO': None,
+                    'frame_id': frame_id
+                })
                 continue
 
-            if 6 in ids:
-                idx = np.where(ids == 6)[0][0]
+            if 3 in ids:
+                idx = np.where(ids == 3)[0][0]
                 corners = np.array([corners[idx]])
                 ids = np.array([ids[idx]])
             
@@ -143,14 +161,18 @@ def detect_aruco_markers(dataset_path:str):
                 # L515
                 distcoeffs = np.array([0.0,0.0,0.0,0.0,0.0])
 
-                rvecs, tvecs, _ = cv2.aruco.estimatePoseSingleMarkers(corners, 0.05, intrinsics, distcoeffs)
+                rvecs, tvecs, _ = cv2.aruco.estimatePoseSingleMarkers(corners, 0.025, intrinsics, distcoeffs)
                 for i in range(len(rvecs)):
                     frame = cv2.drawFrameAxes(frame, intrinsics, distcoeffs, rvecs[i], tvecs[i], 0.1)
 
                 print("Marker found for episode ", episode)
 
             else:
-                print("No marker 8 found for episode ", episode)
+                print("No marker 3 found for episode ", episode)
+                detection_list.append({
+                    'X_BO': None,
+                    'frame_id': frame_id
+                })
                 continue
                 
 
@@ -162,16 +184,28 @@ def detect_aruco_markers(dataset_path:str):
             T_cam_marker = np.eye(4)
             T_cam_marker[:3, 3] = np.array(tvecs).flatten()
             T_cam_marker[:3, :3] = r.as_matrix()
+            X_CO = T_cam_marker
+
+            X_BO = np.dot(X_BC, X_CO)
+
+            if not saved_first_frame:
+                first_frame = X_BO
+                saved_first_frame = True
 
 
             marker_info = {
-                'X_CO': T_cam_marker.tolist(),
+                'X_BO': X_BO.tolist(),
                 'frame_id': frame_id}
+            
+            detection_list.append(marker_info)
+            
 
-            #save marker position as json
-            with open(os.path.join(dataset_path, "episodes", str(episode), "marker_pose.json"), 'w') as f:
-                json.dump(marker_info, f)
-            break
+        # append a marker for frame 0
+        detection_list[0]['X_BO'] = first_frame.tolist()
+
+
+        with open(os.path.join(dataset_path, "episodes", str(episode), "object_frames.json"), 'w') as f:
+            json.dump(detection_list, f)
 
         cap.release()
 
@@ -189,13 +223,6 @@ def extract_robot_pos_orien(poses: list):
         for pose in episode:
             temp_p.append(pose[:3, 3])
             rot = pose[:3, :3]
-            # # check if the rotation matrix is valid
-            # try:
-            #     assert np.isclose(np.linalg.det(rot), 1)
-            # except AssertionError:
-            #     pdb.set_trace()
-
-            # convert to 6d representation
             temp_o.append(matrix_to_rotation_6d(rot))
         xyz.append(temp_p)
         oriens.append(temp_o)
@@ -224,24 +251,28 @@ def parse_dataset(dataset_path:str):
     tactile_data = []
     joint_torques = []
     ee_forces = []
+    object_poses = []
 
    # sort numerically the episodes based on folder names
     episodes = sorted(os.listdir(os.path.join(dataset_path, "episodes")), key=lambda x: int(x))
     for episode in episodes:
         # read the state.json file which consists of a list of dictionaries
         raw_data = json.load(open(os.path.join(dataset_path, "episodes", episode ,"state.json")))
+        raw_object_data = json.load(open(os.path.join(dataset_path, "episodes", episode ,"object_frames.json")))
         temp_poses = []
         temp_tactile = []
         temp_torques = []
         temp_forces = []
         temp_gello = []
+        temp_object_poses = []
+
         for idx in range(len(raw_data)):
             pose = np.array(raw_data[idx]["X_BE"])
             temp_poses.append(pose)
 
             # get the tactile data
-            tactile = np.array(raw_data[idx]["tactile_sensors"])
-            temp_tactile.append(tactile)
+            # tactile = np.array(raw_data[idx]["tactile_sensors"])
+            # temp_tactile.append(tactile)
 
             # get the joint torques
             torques = np.array(raw_data[idx]["joint_torques"])
@@ -256,19 +287,26 @@ def parse_dataset(dataset_path:str):
             # convert joint positions to pose of tool centre point
             gello_pose = robot.fkine(gello_q, "panda_link8") * X_FE
             temp_gello.append(gello_pose.A)
+
+            # get object poses
+            object_pose = np.array(raw_object_data[idx]["X_BO"])
+            temp_object_poses.append(object_pose)
+
         
         ee_poses.append(temp_poses)
-        tactile_data.append(temp_tactile)
+        # tactile_data.append(temp_tactile)
         joint_torques.append(temp_torques)
         ee_forces.append(temp_forces)
         gello_poses.append(temp_gello)
+        object_poses.append(temp_object_poses)
 
     return {
         'ee_poses': ee_poses,
-        'tactile_data': tactile_data,
+        # 'tactile_data': tactile_data,
         'joint_torques': joint_torques,
         'ee_forces': ee_forces,
-        'gello_poses': gello_poses
+        'gello_poses': gello_poses,
+        'object_poses': object_poses
     }
 
 
@@ -316,7 +354,7 @@ def extract_goal_poses(dataset_path:str):
 
 
 
-# fpath = "/home/krishan/work/2024/datasets/door_open_v2.0"
+# fpath = "/home/krishan/work/2024/datasets/cup_rotate"
 # decode_video(fpath)
 # detect_aruco_markers(fpath)
 # out = extract_robot_poses(fpath)

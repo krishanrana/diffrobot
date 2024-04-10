@@ -49,54 +49,45 @@ class DiffusionStateDataset(torch.utils.data.Dataset):
             # X_BO: Object frame wrt base frame
             self.object_centric_states = []
             self.object_centric_actions = []
-            self.object_state  = []
             self.all_ee_poses = self.all_data['ee_poses']
             self.all_gello_poses = self.all_data['gello_poses']
             self.all_object_poses = self.all_data['object_poses']
 
+            
             for i in range(len(self.all_ee_poses)): # for each episode
                 temp_ee = []
                 temp_ee_gello = []
-                temp_object_state = []
                 for j in range(len(self.all_ee_poses[i])): # for each state in the episode
-                   
-                    temp_X_BO = self.all_object_poses[i][j]
-                    if temp_X_BO.shape != ():
-                        X_BO = np.array(temp_X_BO)
-                    
-                    temp_object_state.append(X_BO)
-
+                    #X_CO = self.all_goal_poses[i]
+                    # get the pose of the robot end effector in the object frame
+                    #X_BO = np.dot(X_BC, X_CO)
                     X_BE = self.all_ee_poses[i][j]
-                    X_OE = np.dot(np.linalg.inv(X_BO), X_BE)
+                    X_OE = np.dot(np.linalg.inv(self.X_BO), X_BE)
                     temp_ee.append(X_OE)
 
                     X_BE_gello = self.all_gello_poses[i][j]
-                    X_OE_gello = np.dot(np.linalg.inv(X_BO), X_BE_gello)
+                    X_OE_gello = np.dot(np.linalg.inv(self.X_BO), X_BE_gello)
                     temp_ee_gello.append(X_OE_gello)
 
                 self.object_centric_states.append(temp_ee)
                 self.object_centric_actions.append(temp_ee_gello)
-                self.object_state.append(temp_object_state)
             
             self.all_ee_poses = self.object_centric_states
             self.all_gello_poses = self.object_centric_actions
-            self.all_object_poses = self.object_state
-
 
         # Accumulate all the data 
         self.all_ee_pos, self.all_ee_orien = extract_robot_pos_orien(self.all_ee_poses)
         self.all_gello_pos, self.all_gello_orien = extract_robot_pos_orien(self.all_gello_poses)
-        self.all_object_pos, self.all_object_orien = extract_robot_pos_orien(self.all_object_poses)
-        # self.all_tactile_data = self.all_data['tactile_data']
+        self.all_tactile_data = self.all_data['tactile_data']
         self.all_joint_torques = self.all_data['joint_torques']
         self.all_ee_forces = self.all_data['ee_forces']
         self.all_progress = [np.linspace(0, 1, len(states)) for states in self.all_ee_pos]
-        # self.all_tactile_0 = [np.array(data)[:,0,:,:,:] for data in self.all_tactile_data]
-        # self.all_tactile_1 = [np.array(data)[:,1,:,:,:] for data in self.all_tactile_data]
+        self.all_tactile_0 = [np.array(data)[:,0,:,:,:] for data in self.all_tactile_data]
+        self.all_tactile_1 = [np.array(data)[:,1,:,:,:] for data in self.all_tactile_data]
 
         # place channels first
-        # self.all_tactile_0 = [np.transpose(data, (0, 3, 1, 2)) for data in self.all_tactile_0]
-        # self.all_tactile_1 = [np.transpose(data, (0, 3, 1, 2)) for data in self.all_tactile_1]
+        self.all_tactile_0 = [np.transpose(data, (0, 3, 1, 2)) for data in self.all_tactile_0]
+        self.all_tactile_1 = [np.transpose(data, (0, 3, 1, 2)) for data in self.all_tactile_1]
 
         # compute statistics and normalized data to [-1,1]
         stats = dict()
@@ -123,8 +114,8 @@ class DiffusionStateDataset(torch.utils.data.Dataset):
         normalized_train_data['joint_torques'] = [normalize_data(data, stats['joint_torques']) for data in self.all_joint_torques]
         normalized_train_data['ee_forces'] = [normalize_data(data, stats['ee_forces']) for data in self.all_ee_forces]
         normalized_train_data['progress'] = [normalize_data(data, stats['progress']) for data in self.all_progress]
-        # normalized_train_data['tactile_0'] = [normalize_data(data, stats['tactile_data']) for data in self.all_tactile_0]
-        # normalized_train_data['tactile_1'] = [normalize_data(data, stats['tactile_data']) for data in self.all_tactile_1]
+        normalized_train_data['tactile_0'] = [normalize_data(data, stats['tactile_data']) for data in self.all_tactile_0]
+        normalized_train_data['tactile_1'] = [normalize_data(data, stats['tactile_data']) for data in self.all_tactile_1]
 
         # shuffle indices
         np.random.seed(0)
@@ -150,23 +141,27 @@ class DiffusionStateDataset(torch.utils.data.Dataset):
         # state data
         ee_pos = self.normalized_train_data['ee_positions'][episode][start_idx:end_idx]
         ee_orien = self.all_ee_orien[episode][start_idx:end_idx] # we dont normalize orientations
+        tactile_0 = self.normalized_train_data['tactile_0'][episode][start_idx:end_idx]
+        tactile_1 = self.normalized_train_data['tactile_1'][episode][start_idx:end_idx]
         joint_torques = self.normalized_train_data['joint_torques'][episode][start_idx:end_idx]
         ee_forces = self.normalized_train_data['ee_forces'][episode][start_idx:end_idx]
         progress = self.normalized_train_data['progress'][episode][start_idx:end_idx].reshape(-1, 1)
-        object_orien = self.all_object_orien[episode][start_idx:end_idx] # orientation of object in the base frame
         
+
         # create a state tensor - exclude tactile data for now
         # robot_state = np.concatenate([ee_pos, ee_orien, joint_torques, ee_forces, progress], axis=-1)
-        robot_state = np.concatenate([ee_pos, ee_orien, object_orien], axis=-1)
+        robot_state = np.concatenate([ee_pos, ee_orien], axis=-1)
 
-        # action data 
+        # action data  #TODO: do we shift by 1 or not
         action_pos = self.normalized_train_data['ee_positions_gello'][episode][start_idx:end_idx] 
         action_orien = self.all_gello_orien[episode][start_idx:end_idx] # we dont normalize orientations
 
         robot_action = np.concatenate([action_pos, action_orien, progress], axis=-1)
     
         return {'state': robot_state,
-                'action': robot_action}
+                'action': robot_action,
+                'tactile_0': tactile_0,
+                'tactile_1': tactile_1}
  
     def __len__(self):
         return len(self.indices)
@@ -182,13 +177,14 @@ class DiffusionStateDataset(torch.utils.data.Dataset):
         
         # normalize data
         nsample['state'] = nsample['state'][:self.obs_horizon,:]
-
+        nsample['tactile_0'] = nsample['tactile_0'][:self.obs_horizon,:]
+        nsample['tactile_1'] = nsample['tactile_1'][:self.obs_horizon,:]
 
         return nsample
     
 
 # # # # # test
-# fpath = "/home/krishan/work/2024/datasets/cup_rotate"
+# fpath = "/home/krishan/work/2024/datasets/door_open"
 # dataset = DiffusionStateDataset(
 #     dataset_path=fpath,
 #     pred_horizon=16,

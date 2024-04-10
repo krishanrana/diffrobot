@@ -2,7 +2,8 @@
 
 low_dim = 9 #23
 tactile_dim = 16
-obs_dim = low_dim + tactile_dim #25
+object_rotation_dim = 6
+obs_dim = low_dim + object_rotation_dim #25
 
 action_dim = 10 # 3 for position, 1 for progress
 pred_horizon = 16
@@ -21,6 +22,6 @@ lr_scheduler_profile = 'cosine'
 weight_decay = 1e-6
 num_warmup_steps = 500
 
-action_frame = 'global' # 'global' or 'object_centric'
+action_frame = 'object_centric' # 'global' or 'object_centric'
 
-dataset_path = "/home/krishan/work/2024/datasets/door_open_v2.0"
+dataset_path = "/home/krishan/work/2024/datasets/cup_rotate"
