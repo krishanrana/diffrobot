@@ -60,7 +60,7 @@ class RobotInferenceController:
         # self.panda.set_dynamic_rel(1.0, accel_rel=0.2, jerk_rel=0.05)
         # self.panda.set_dynamic_rel(0.4, accel_rel=0.005, jerk_rel=0.05)
 
-        self.panda.set_dynamic_rel(0.1, accel_rel=0.2, jerk_rel=0.05)
+        self.panda.set_dynamic_rel(1.0, accel_rel=0.2, jerk_rel=0.05)
         self.panda.frankx.set_collision_behavior(
 			[30.0, 30.0, 30.0, 30.0, 30.0, 30.0, 30.0],
 			[30.0, 30.0, 30.0, 30.0, 30.0, 30.0, 30.0],
@@ -175,7 +175,7 @@ class RobotInferenceController:
                         [0.0, 0.0, 1.0, 0.2], 
                         [0.0, 0.0, 0.0, 1.0]])
 
-                    trans, orien = matrix_to_pos_orn(self.action[i]@X_FE)
+                    trans, orien = matrix_to_pos_orn(self.action[i])
                     motion.set_target(to_affine(trans, orien))
 
                     robot_q = self.panda.get_joint_positions()
@@ -218,7 +218,7 @@ class RobotInferenceController:
 
 
 # Example usage
-controller = RobotInferenceController(saved_run_name='tough-donkey-53_state', #major-sim-49_state
+controller = RobotInferenceController(saved_run_name='cerulean-bee-54_state', #major-sim-49_state
                                       robot_ip='172.16.0.2', 
                                       sensor_ip='131.181.33.191', 
                                       sensor_port=5000)

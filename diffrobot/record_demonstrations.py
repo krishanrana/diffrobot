@@ -48,7 +48,7 @@ class DataRecorder:
         state =  {
             "X_BE": np.array(robot_state.O_T_EE).reshape(4,4).T.tolist(),
             "robot_q": np.array(robot_state.q).tolist(),
-            "tactile_sensors": np.array(self.sensor_socket.get_forces()).tolist(),
+            # "tactile_sensors": np.array(self.sensor_socket.get_forces()).tolist(),
             "joint_torques": np.array(robot_state.tau_ext_hat_filtered).tolist(),
             "ee_forces": np.array(robot_state.K_F_ext_hat_K).tolist(),
             "gello_q": np.array(gello_q[:7]).tolist(),
@@ -66,12 +66,15 @@ class DataRecorder:
         self.cams = MultiRealsense(
             record_fps=self.record_fps,
             serial_numbers=['f1230727'],
-            enable_depth=True
+            resolution=(1280,720),
+            depth_resolution=(1024,768),
+            enable_depth=False
         )
         self.cams.start()
         self.cams.set_exposure(exposure=100, gain=60)
-        self.sensor_socket = SensorSocket("131.181.33.191", 5000)
-        self.marker_detector = ArucoDetector(self.cams.cameras['f1230727'], 0.025, aruco.DICT_4X4_50, 4, visualize=True)
+        time.sleep(2)
+        # self.sensor_socket = SensorSocket("131.181.33.191", 5000) #tactile sensor
+        # self.marker_detector = ArucoDetector(self.cams.cameras['f1230727'], 0.025, aruco.DICT_4X4_50, 4, visualize=True)
         self.setup_streams()
 
     def grasp(self, x):
@@ -140,9 +143,6 @@ class DataRecorder:
             elif self.key == self.discard_key:
                 self.toggle_record(discard=True)
             
-                
-
-        
 
     # def _record_data(self):
     #     path = Path(f"data/{self.params.name}/{self.idx}/video")
