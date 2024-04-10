@@ -61,8 +61,15 @@ class DiffusionStateDataset(torch.utils.data.Dataset):
                 for j in range(len(self.all_ee_poses[i])): # for each state in the episode
                    
                     temp_X_BO = self.all_object_poses[i][j]
-                    if temp_X_BO.shape != ():
+
+                    if j == 0:
                         X_BO = np.array(temp_X_BO)
+                    else:
+                        if temp_X_BO.shape != ():
+                            temp = np.array(temp_X_BO)
+                            dist = np.dot(np.array([0,0,1]), temp[:3,2])
+                            if dist > 0.98: # filter out bad object poses
+                                X_BO = temp
                     
                     temp_object_state.append(X_BO)
 
