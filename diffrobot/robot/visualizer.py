@@ -17,7 +17,7 @@ class RobotViz():
         self.ee_pose = sg.Axes(0.1, pose = sm.SE3(1,1,1))
         self.env.add(self.object_pose)
         self.env.add(self.ee_pose)
-        # self.env.add(self.policy_pose)
+        self.env.add(self.policy_pose)
     
         self.robot.grippers[0].q = [0.03, 0.03]
 
@@ -31,5 +31,6 @@ class RobotViz():
     
     def step(self, q, gello_q=None):
         self.robot.q = q
-        self.gello.q = gello_q
+        if gello_q is not None:
+            self.gello.q = gello_q
         self.env.step()
