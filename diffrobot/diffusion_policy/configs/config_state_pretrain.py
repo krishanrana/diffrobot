@@ -3,7 +3,7 @@
 low_dim = 9 #23
 tactile_dim = 16
 object_rotation_dim = 6
-obs_dim = low_dim + object_rotation_dim #25
+obs_dim = low_dim #+ object_rotation_dim #25
 
 action_dim = 10 # 3 for position, 1 for progress
 pred_horizon = 16
@@ -24,4 +24,4 @@ num_warmup_steps = 500
 
 action_frame = 'object_centric' # 'global' or 'object_centric'
 
-dataset_path = "/home/krishan/work/2024/datasets/cup_rotate"
+dataset_path = "/home/krishan/work/2024/datasets/cup_rotate_fixed"

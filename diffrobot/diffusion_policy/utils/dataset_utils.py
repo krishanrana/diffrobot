@@ -165,7 +165,7 @@ def detect_aruco_markers(dataset_path:str):
                 for i in range(len(rvecs)):
                     frame = cv2.drawFrameAxes(frame, intrinsics, distcoeffs, rvecs[i], tvecs[i], 0.1)
 
-                print("Marker found for episode ", episode)
+                print(f"Marker found for episode {episode} at frame {frame_id}")
 
             else:
                 print("No marker 3 found for episode ", episode)
@@ -188,28 +188,29 @@ def detect_aruco_markers(dataset_path:str):
 
             X_BO = np.dot(X_BC, X_CO)
 
-            if not saved_first_frame:
-                first_frame = X_BO
-                saved_first_frame = True
-
+            # if not saved_first_frame:
+            #     first_frame = X_BO
+            #     saved_first_frame = True
 
             marker_info = {
                 'X_BO': X_BO.tolist(),
                 'frame_id': frame_id}
             
-            detection_list.append(marker_info)
+            break
+            
+            # detection_list.append(marker_info)
             
 
-        # append a marker for frame 0
-        detection_list[0]['X_BO'] = first_frame.tolist()
+    #     # append a marker for frame 0
+    #     detection_list[0]['X_BO'] = first_frame.tolist()
 
 
-        with open(os.path.join(dataset_path, "episodes", str(episode), "object_frames.json"), 'w') as f:
-            json.dump(detection_list, f)
+        with open(os.path.join(dataset_path, "episodes", str(episode), "object_frame.json"), 'w') as f:
+            json.dump(marker_info, f)
 
         cap.release()
 
-    print("Done detecting markers")
+    # print("Done detecting markers")
 
     return
 
@@ -258,7 +259,7 @@ def parse_dataset(dataset_path:str):
     for episode in episodes:
         # read the state.json file which consists of a list of dictionaries
         raw_data = json.load(open(os.path.join(dataset_path, "episodes", episode ,"state.json")))
-        raw_object_data = json.load(open(os.path.join(dataset_path, "episodes", episode ,"object_frames.json")))
+        raw_object_data = json.load(open(os.path.join(dataset_path, "episodes", episode ,"object_frame.json")))
         temp_poses = []
         temp_tactile = []
         temp_torques = []
@@ -288,9 +289,9 @@ def parse_dataset(dataset_path:str):
             gello_pose = robot.fkine(gello_q, "panda_link8") * X_FE
             temp_gello.append(gello_pose.A)
 
-            # get object poses
-            object_pose = np.array(raw_object_data[idx]["X_BO"])
-            temp_object_poses.append(object_pose)
+        # get object poses
+        object_pose = np.array(raw_object_data["X_BO"])
+        temp_object_poses.append(object_pose)
 
         
         ee_poses.append(temp_poses)
@@ -354,7 +355,7 @@ def extract_goal_poses(dataset_path:str):
 
 
 
-# fpath = "/home/krishan/work/2024/datasets/cup_rotate"
+# fpath = "/home/krishan/work/2024/datasets/cup_rotate_fixed"
 # decode_video(fpath)
 # detect_aruco_markers(fpath)
 # out = extract_robot_poses(fpath)
