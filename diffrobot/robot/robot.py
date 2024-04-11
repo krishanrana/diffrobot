@@ -156,6 +156,13 @@ class Robot:
             pose = np.array(self.motion.get_robot_state().O_T_EE).reshape(4, 4).T
             return pose
 
+    def get_state(self):
+        if self.motion == None:
+            state = self.frankx.read_once()
+        else:
+            state = self.motion.get_robot_state()
+        return state
+
     
     def has_errors(self):
         return self.frankx.has_errors()

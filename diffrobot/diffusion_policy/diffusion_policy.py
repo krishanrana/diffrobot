@@ -501,7 +501,11 @@ class DiffusionPolicy():
             # Convert each one to a [x,y,z] point in robot frame
 
             X_BO = obs_deque[0]['X_BO']
-            X_BE = np.array([np.dot(X_BO, X_OE) for X_OE in action])
+            # X_BE = np.array([np.dot(X_BO, X_OE) for X_OE in action])
+            X_BE = [X_BO @ X_OE for X_OE in action]
+            # X_BE = [X_BO for X_OE in action]
+
+            # X_BE = action
 
         elif self.params.action_frame == 'global':
             X_BE = action
