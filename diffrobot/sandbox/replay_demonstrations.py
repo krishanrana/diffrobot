@@ -6,7 +6,7 @@ import time
 import spatialmath as sm
 import numpy as np
 
-dataset_path = "/home/krishan/work/2024/datasets/cup_rotate"
+dataset_path = "/home/krishan/work/2024/datasets/cup_rotate_fixed"
 episodes = sorted(os.listdir(os.path.join(dataset_path, "episodes")), key=lambda x: int(x))
 env = RobotViz()
 
@@ -29,9 +29,10 @@ for episode in episodes:
     with open(episode_path, "r") as f:
         data = json.load(f)
     
-    object_frame_path = os.path.join(dataset_path, "episodes", episode, "object_frames.json")
+    object_frame_path = os.path.join(dataset_path, "episodes", episode, "object_frame.json")
     with open(object_frame_path, "r") as f:
         object_data = json.load(f)
+        X_BO = object_data["X_BO"]
     
     for idx, state in enumerate(data):
         X_BE = np.array(state["X_BE"])
@@ -39,17 +40,17 @@ for episode in episodes:
         X_BC = np.dot(X_BF, X_FC)
 
 
-        if object_data[idx]["X_BO"] is not None:
-            if idx == 0:
-                X_BO = np.array(object_data[idx]["X_BO"])
-                dist = np.dot(np.array([0,0,1]), X_BO[:3,2])
-                # print(dist)
-            else:
-                temp = np.array(object_data[idx]["X_BO"])
-                dist = np.dot(np.array([0,0,1]), temp[:3,2])
-                if dist > 0.99:
-                    print(dist)
-                    X_BO = temp
+        # if object_data[idx]["X_BO"] is not None:
+        #     if idx == 0:
+        #         X_BO = np.array(object_data[idx]["X_BO"])
+        #         dist = np.dot(np.array([0,0,1]), X_BO[:3,2])
+        #         # print(dist)
+        #     else:
+        #         temp = np.array(object_data[idx]["X_BO"])
+        #         dist = np.dot(np.array([0,0,1]), temp[:3,2])
+        #         if dist > 0.99:
+        #             print(dist)
+        #             X_BO = temp
 
 
         env.ee_pose.T = sm.SE3(X_BE, check=False).norm()
