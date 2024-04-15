@@ -120,7 +120,8 @@ class RobotInferenceController:
             .pipe(ops.filter(lambda x: x["X_BO"] is not None)) \
             .subscribe(lambda x: self.obs_deque.append(x))  
       
-        motion = self.panda.start_impedance_controller(200, 30, 5)
+        # motion = self.panda.start_impedance_controller(200, 30, 5)
+        motion = self.panda.start_impedance_controller(220, 30, 5)
 
         while True:
             done = False
@@ -142,7 +143,7 @@ class RobotInferenceController:
                 # self.panda.recover_from_errors()
                 # take very 3rd action
                 # for i in range(len(self.action)):
-                for i in range(0, len(self.action), 3):
+                for i in range(0, len(self.action), 2):
                     print('Task Progress: ', self.progress[i])
                     # if self.progress[i] >  0.85:
                     #     print('I think im done with the task!')
@@ -188,7 +189,7 @@ class RobotInferenceController:
 
 
 # Example usage
-controller = RobotInferenceController(saved_run_name='dainty-leaf-61_state',
+controller = RobotInferenceController(saved_run_name='charmed-sun-62_state',
                                       robot_ip='172.16.0.2', 
                                       sensor_ip='131.181.33.191', 
                                       sensor_port=5000)

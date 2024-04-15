@@ -35,7 +35,7 @@ class Teleop:
 
 
 		self.robot_visualiser = RobotViz()
-		# self.robot_visualiser.step(self.home_q, self.home_q)
+		self.robot_visualiser.step(self.home_q, self.home_q)
 
 	def set_callback(self, callback):
 		self._callback = callback
@@ -129,7 +129,7 @@ class Teleop:
 		)
 		#self.panda.frankx.set_cartesian_impedance([30.0,30.0,30.0,10.0,10.0,10.0])
 		# self.motion = self.panda.start_cartesian_controller()
-		self.motion = self.panda.start_impedance_controller(200, 30, 5)
+		self.motion = self.panda.start_impedance_controller(800, 40, 1)
 		while not self.stop_requested:
 			gello_q = self.gello.get_joint_state()
 			# pose = panda_py.fk(np.round(gello_q[:7],4))
