@@ -188,29 +188,25 @@ def detect_aruco_markers(dataset_path:str):
 
             X_BO = np.dot(X_BC, X_CO)
 
-            # if not saved_first_frame:
-            #     first_frame = X_BO
-            #     saved_first_frame = True
-
             marker_info = {
                 'X_BO': X_BO.tolist(),
                 'frame_id': frame_id}
             
-            break
+            
+            if not saved_first_frame:
+                with open(os.path.join(dataset_path, "episodes", str(episode), "object_frame.json"), 'w') as f:
+                    json.dump(marker_info, f)
+                saved_first_frame = True
+                
             
             # detection_list.append(marker_info)
-            
 
-    #     # append a marker for frame 0
-    #     detection_list[0]['X_BO'] = first_frame.tolist()
-
-
-        with open(os.path.join(dataset_path, "episodes", str(episode), "object_frame.json"), 'w') as f:
+        with open(os.path.join(dataset_path, "episodes", str(episode), "object_frame_last.json"), 'w') as f:
             json.dump(marker_info, f)
 
         cap.release()
 
-    # print("Done detecting markers")
+    print("Done detecting markers")
 
     return
 
@@ -237,6 +233,46 @@ def extract_goal_positions(poses: list):
     return xyz
 
 
+def compute_oriented_affordance_frame(transform_matrix):
+    """
+    Compute the angle needed to rotate the x-axis of a given transformation
+    matrix so that it points towards the origin. Apply the rotation to the
+    transformation matrix and return the resulting matrix.
+
+    Parameters:
+    - transform_matrix: A 4x4 numpy array representing the homogeneous transformation matrix.
+
+    Returns:
+    - The transformation matrix with the x-axis pointing towards the origin.
+    """
+    # Extract the translation components (P_x, P_y) from the matrix
+    P_x, P_y = transform_matrix[0, 3], transform_matrix[1, 3]
+    
+    # Calculate the angle between the vector pointing from the frame's current position
+    # to the origin and the global x-axis. This uses atan2 and is adjusted by 180 degrees
+    # to account for the direction towards the origin.
+    angle_to_origin = np.degrees(np.arctan2(-P_y, -P_x))
+    
+    # Calculate the initial orientation of the frame's x-axis relative to the global x-axis.
+    # This is the angle of rotation about the z-axis that has already been applied to the frame.
+    # We use the elements of the rotation matrix to find this angle.
+    R11, R21 = transform_matrix[0, 0], transform_matrix[1, 0]
+    initial_orientation = np.degrees(np.arctan2(R21, R11))
+    
+    # Compute the additional rotation needed from the frame's current orientation.
+    # This is the difference between the angle to the origin and the frame's initial orientation.
+    additional_rotation = angle_to_origin - initial_orientation
+    
+    # Normalize the result to the range [-180, 180]
+    additional_rotation = (additional_rotation + 180) % 360 - 180
+
+    # Create a new transformation matrix that applies the additional rotation to the original matrix.
+    og_pose = sm.SE3(transform_matrix, check=False).norm()
+    T = og_pose * sm.SE3.Rz(np.deg2rad(additional_rotation))
+    
+    return T
+
+
 def parse_dataset(dataset_path:str):
 
     robot = rtb.models.Panda()
@@ -253,6 +289,7 @@ def parse_dataset(dataset_path:str):
     joint_torques = []
     ee_forces = []
     object_poses = []
+    oriented_object_poses = []
 
    # sort numerically the episodes based on folder names
     episodes = sorted(os.listdir(os.path.join(dataset_path, "episodes")), key=lambda x: int(x))
@@ -266,6 +303,7 @@ def parse_dataset(dataset_path:str):
         temp_forces = []
         temp_gello = []
         temp_object_poses = []
+        temp_orien_object_poses = []
 
         for idx in range(len(raw_data)):
             pose = np.array(raw_data[idx]["X_BE"])
@@ -293,13 +331,17 @@ def parse_dataset(dataset_path:str):
         object_pose = np.array(raw_object_data["X_BO"])
         temp_object_poses.append(object_pose)
 
-        
+        # get oriented object pose
+        X_BOO = compute_oriented_affordance_frame(object_pose)
+        temp_orien_object_poses.append(X_BOO.A)
+
         ee_poses.append(temp_poses)
         # tactile_data.append(temp_tactile)
         joint_torques.append(temp_torques)
         ee_forces.append(temp_forces)
         gello_poses.append(temp_gello)
         object_poses.append(temp_object_poses)
+        oriented_object_poses.append(temp_orien_object_poses)
 
     return {
         'ee_poses': ee_poses,
@@ -307,7 +349,8 @@ def parse_dataset(dataset_path:str):
         'joint_torques': joint_torques,
         'ee_forces': ee_forces,
         'gello_poses': gello_poses,
-        'object_poses': object_poses
+        'object_poses': object_poses,
+        'oriented_object_poses': oriented_object_poses
     }
 
 
@@ -355,7 +398,7 @@ def extract_goal_poses(dataset_path:str):
 
 
 
-# fpath = "/home/krishan/work/2024/datasets/cup_rotate_fixed"
+# fpath = "/home/krishan/work/2024/datasets/cup_rotate_X"
 # decode_video(fpath)
 # detect_aruco_markers(fpath)
 # out = extract_robot_poses(fpath)

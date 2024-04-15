@@ -54,13 +54,15 @@ class DiffusionStateDataset(torch.utils.data.Dataset):
             self.all_ee_poses = self.all_data['ee_poses']
             self.all_gello_poses = self.all_data['gello_poses']
             self.all_object_poses = self.all_data['object_poses']
+            self.all_oriented_object_poses = self.all_data['oriented_object_poses']
 
             for i in range(len(self.all_ee_poses)): # for each episode
                 temp_ee = []
                 temp_ee_gello = []
-                # temp_object_state = []
+                temp_object_state = []
 
                 X_BO = self.all_object_poses[i][0]
+                X_BOO = self.all_oriented_object_poses[i][0]
 
                 for j in range(len(self.all_ee_poses[i])): # for each state in the episode
                    
@@ -78,26 +80,27 @@ class DiffusionStateDataset(torch.utils.data.Dataset):
                     # temp_object_state.append(X_BO)
 
                     X_BE = self.all_ee_poses[i][j]
-                    X_OE = np.dot(np.linalg.inv(X_BO), X_BE)
+                    # transform all ee poses to oriented object frame
+                    X_OE = np.dot(np.linalg.inv(X_BOO), X_BE)
                     temp_ee.append(X_OE)
 
                     X_BE_gello = self.all_gello_poses[i][j]
-                    X_OE_gello = np.dot(np.linalg.inv(X_BO), X_BE_gello)
+                    X_OE_gello = np.dot(np.linalg.inv(X_BOO), X_BE_gello)
                     temp_ee_gello.append(X_OE_gello)
 
                 self.object_centric_states.append(temp_ee)
                 self.object_centric_actions.append(temp_ee_gello)
-                # self.object_state.append(temp_object_state)
+                self.object_state.append([X_BO])
             
             self.all_ee_poses = self.object_centric_states
             self.all_gello_poses = self.object_centric_actions
-            # self.all_object_poses = self.object_state
+            self.all_object_poses = self.object_state
 
 
         # Accumulate all the data 
         self.all_ee_pos, self.all_ee_orien = extract_robot_pos_orien(self.all_ee_poses)
         self.all_gello_pos, self.all_gello_orien = extract_robot_pos_orien(self.all_gello_poses)
-        # self.all_object_pos, self.all_object_orien = extract_robot_pos_orien(self.all_object_poses)
+        self.all_object_pos, self.all_object_orien = extract_robot_pos_orien(self.all_object_poses)
         # self.all_tactile_data = self.all_data['tactile_data']
         self.all_joint_torques = self.all_data['joint_torques']
         self.all_ee_forces = self.all_data['ee_forces']
@@ -164,7 +167,8 @@ class DiffusionStateDataset(torch.utils.data.Dataset):
         # joint_torques = self.normalized_train_data['joint_torques'][episode][start_idx:end_idx]
         # ee_forces = self.normalized_train_data['ee_forces'][episode][start_idx:end_idx]
         progress = self.normalized_train_data['progress'][episode][start_idx:end_idx].reshape(-1, 1)
-        # object_orien = self.all_object_orien[episode][start_idx:end_idx] # orientation of object in the base frame
+
+        object_orien = self.all_object_orien[episode][0] # orientation of object in the base frame
         
         # create a state tensor - exclude tactile data for now
         # robot_state = np.concatenate([ee_pos, ee_orien, joint_torques, ee_forces, progress], axis=-1)
@@ -177,6 +181,7 @@ class DiffusionStateDataset(torch.utils.data.Dataset):
         robot_action = np.concatenate([action_pos, action_orien, progress], axis=-1)
     
         return {'state': robot_state,
+                'object_orientation': object_orien,
                 'action': robot_action}
  
     def __len__(self):
@@ -190,16 +195,15 @@ class DiffusionStateDataset(torch.utils.data.Dataset):
         nsample = self.sample_sequence(
             episode, sample_start_idx, sample_end_idx
         )
-        
+
         # normalize data
         nsample['state'] = nsample['state'][:self.obs_horizon,:]
-
 
         return nsample
     
 
 # # # # # test
-# fpath = "/home/krishan/work/2024/datasets/cup_rotate"
+# fpath = "/home/krishan/work/2024/datasets/cup_rotate_X"
 # dataset = DiffusionStateDataset(
 #     dataset_path=fpath,
 #     pred_horizon=16,
