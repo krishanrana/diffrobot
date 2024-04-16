@@ -15,6 +15,7 @@ from diffrobot.diffusion_policy.diffusion_policy import DiffusionPolicy
 from diffrobot.robot.robot import Robot, to_affine, matrix_to_pos_orn
 from diffrobot.diffusion_policy.utils.config_utils import get_config
 from diffrobot.robot.visualizer import RobotViz
+from diffrobot.diffusion_policy.utils.dataset_utils import compute_oriented_affordance_frame
 import pdb
 
 
@@ -60,7 +61,7 @@ class RobotInferenceController:
         self.sh.start()
         self.cam = SingleRealsense(self.sh, "f1230727")
         self.cam.start()
-        self.marker_detector = ArucoDetector(self.cam, 0.025, aruco.DICT_4X4_50, 3, visualize=False)
+        self.marker_detector = ArucoDetector(self.cam, 0.025, aruco.DICT_4X4_50, 3, visualize=True)
         self.cam.set_exposure(exposure=100, gain=60)
         # self.sensor_socket = SensorSocket(self.sensor_ip, self.sensor_port)
         time.sleep(1.0)
@@ -121,7 +122,7 @@ class RobotInferenceController:
             .subscribe(lambda x: self.obs_deque.append(x))  
       
         # motion = self.panda.start_impedance_controller(200, 30, 5)
-        motion = self.panda.start_impedance_controller(220, 30, 5)
+        motion = self.panda.start_impedance_controller(800, 40, 1)
 
         while True:
             done = False
@@ -139,11 +140,13 @@ class RobotInferenceController:
                 self.action = out['action']
                 self.progress = out['progress']
 
+                X_BOO = compute_oriented_affordance_frame(self.obs_deque[0]['X_BO'])
+
                 waypoints = []
                 # self.panda.recover_from_errors()
                 # take very 3rd action
                 # for i in range(len(self.action)):
-                for i in range(0, len(self.action), 2):
+                for i in range(len(self.action)):
                     print('Task Progress: ', self.progress[i])
                     # if self.progress[i] >  0.85:
                     #     print('I think im done with the task!')
@@ -155,9 +158,13 @@ class RobotInferenceController:
 
                     robot_q = self.panda.get_joint_positions()
                     self.robot_visualiser.ee_pose.T = self.panda.get_tcp_pose()
-                    self.robot_visualiser.policy_pose.T = self.action[i]    
+                    self.robot_visualiser.policy_pose.T = self.action[i]
+                    self.robot_visualiser.orientation_frame.T = X_BOO    
                     self.robot_visualiser.step(robot_q)
                     time.sleep(0.1)
+
+                    if i > 3:
+                        break
 
                     # pdb.set_trace()
                     
@@ -189,7 +196,7 @@ class RobotInferenceController:
 
 
 # Example usage
-controller = RobotInferenceController(saved_run_name='charmed-sun-62_state',
+controller = RobotInferenceController(saved_run_name='vivid-leaf-67_state',
                                       robot_ip='172.16.0.2', 
                                       sensor_ip='131.181.33.191', 
                                       sensor_port=5000)

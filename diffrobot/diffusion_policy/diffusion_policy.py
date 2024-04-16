@@ -25,6 +25,8 @@ import numpy as np
 from diffrobot.diffusion_policy.utils.im_utils import FixedCropTransform
 from diffrobot.diffusion_policy.utils.config_utils import get_config
 from diffrobot.diffusion_policy.utils.rotation_transforms import rotation_6d_to_matrix, matrix_to_rotation_6d
+from diffrobot.diffusion_policy.utils.dataset_utils import compute_oriented_affordance_frame
+
 
 # torch.backends.cuda.matmul.allow_tf32 = True
 
@@ -372,8 +374,11 @@ class DiffusionPolicy():
 
 
         # X_OE = [np.dot(np.linalg.inv(o['X_BO']), o['X_BE']) for o in obs_deque]
+
+        X_BO = obs_deque[0]['X_BO']
+        X_BOO = compute_oriented_affordance_frame(X_BO).A
         if self.params.action_frame == 'object_centric':
-            ee_pose = [np.dot(np.linalg.inv(o['X_BO']), o['X_BE']) for o in obs_deque] # X_OE
+            ee_pose = [np.dot(np.linalg.inv(X_BOO), o['X_BE']) for o in obs_deque] # X_OE
         elif self.params.action_frame == 'global':
             ee_pose = [o['X_BE'] for o in obs_deque]
 
@@ -403,6 +408,9 @@ class DiffusionPolicy():
         # obs_cond = torch.cat([robot_state, tactile_features], dim=-1)
         obs_cond = robot_state
         obs_cond = obs_cond.flatten(start_dim=0).unsqueeze(0)
+                
+        # concatenate object orientation
+        obs_cond = torch.cat([obs_cond, object_orien[0].unsqueeze(0).to(self.device, dtype=self.precision)], dim=-1)
 
         return obs_cond
     
@@ -504,8 +512,10 @@ class DiffusionPolicy():
             # Convert each one to a [x,y,z] point in robot frame
 
             X_BO = obs_deque[0]['X_BO']
+            X_BOO = compute_oriented_affordance_frame(X_BO).A
+
             # X_BE = np.array([np.dot(X_BO, X_OE) for X_OE in action])
-            X_BE = [X_BO @ X_OE for X_OE in action]
+            X_BE = [X_BOO @ X_OOE for X_OOE in action]
             # X_BE = [X_BO for X_OE in action]
 
             # X_BE = action
