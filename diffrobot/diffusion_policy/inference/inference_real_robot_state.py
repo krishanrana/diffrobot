@@ -15,7 +15,7 @@ from diffrobot.diffusion_policy.diffusion_policy import DiffusionPolicy
 from diffrobot.robot.robot import Robot, to_affine, matrix_to_pos_orn
 from diffrobot.diffusion_policy.utils.config_utils import get_config
 from diffrobot.robot.visualizer import RobotViz
-from diffrobot.diffusion_policy.utils.dataset_utils import compute_oriented_affordance_frame
+from diffrobot.diffusion_policy.utils.dataset_utils import compute_oriented_affordance_frame, adjust_orientation_to_z_up
 import pdb
 
 
@@ -106,9 +106,10 @@ class RobotInferenceController:
             X_BC = X_BF @ self.X_FC
             X_BO = X_BC @ X_CO
 
-            dist = np.dot(np.array([0,0,1]), X_BO[:3,2])
-            if dist > 0.99: # filter out bad object poses
-                self.X_BO = X_BO
+            # dist = np.dot(np.array([0,0,1]), X_BO[:3,2])
+            # if dist > 0.99: # filter out bad object poses
+            #     self.X_BO = X_BO
+            self.X_BO = adjust_orientation_to_z_up(X_BO)
             
         self.robot_visualiser.object_pose.T = self.X_BO
 

@@ -5,8 +5,12 @@ import pdb
 import time
 import spatialmath as sm
 import numpy as np
+from scipy.spatial.transform import Rotation as R
 
-dataset_path = "/home/krishan/work/2024/datasets/cup_rotate_fixed"
+from diffrobot.diffusion_policy.utils.dataset_utils import adjust_orientation_to_z_up, compute_oriented_affordance_frame
+
+
+dataset_path = "/home/krishan/work/2024/datasets/cup_rotate_X"
 episodes = sorted(os.listdir(os.path.join(dataset_path, "episodes")), key=lambda x: int(x))
 env = RobotViz()
 
@@ -32,7 +36,7 @@ for episode in episodes:
     object_frame_path = os.path.join(dataset_path, "episodes", episode, "object_frame.json")
     with open(object_frame_path, "r") as f:
         object_data = json.load(f)
-        X_BO = object_data["X_BO"]
+        X_BO = np.array(object_data["X_BO"])
     
     for idx, state in enumerate(data):
         X_BE = np.array(state["X_BE"])
@@ -52,15 +56,33 @@ for episode in episodes:
         #             print(dist)
         #             X_BO = temp
 
+        #print euclidean distance between poses X_BE and X_BO
+        # print(np.linalg.norm(X_BE[:3,3] - X_BO[:3,3]))
 
-        env.ee_pose.T = sm.SE3(X_BE, check=False).norm()
+
+        # print angle between Z axis on X_BO and vector [0,0,1]
+        angle = np.arccos(np.dot(X_BO[:3,2], np.array([0,0,1]) / (np.linalg.norm(X_BO[:3,2]) * np.linalg.norm(np.array([0,0,1])))))
+        print(np.rad2deg(angle))
+
+        X_BO = adjust_orientation_to_z_up(X_BO)
+
+        X_BOO = compute_oriented_affordance_frame(X_BO)
+
+        # env.ee_pose.T = sm.SE3(X_BE, check=False).norm()
         target_pose = env.robot.fkine(state["gello_q"], "panda_link8") * X_FE
-        env.policy_pose.T = target_pose 
+        env.policy_pose.T = X_BOO
         env.object_pose.T = sm.SE3(X_BO, check=False).norm()
+        cup_handle_pose = env.object_pose.T * sm.SE3(0.0, 0.083, 0.0)
+        env.cup_handle.T = cup_handle_pose
         env.step(state["robot_q"])
-        time.sleep(0.1)
+        # time.sleep(0.1)
 
-    # pdb.set_trace()
+
+    pdb.set_trace()
+
+
+
+
 
     
     
