@@ -39,7 +39,6 @@ def create_sample_indices(sequence_length:int,
     return indices
 
 
-
 def flatten_2d_lists(list_of_lists):
     flattened_list = []
     for sublist in list_of_lists:
@@ -165,10 +164,10 @@ def detect_aruco_markers(dataset_path:str):
                 for i in range(len(rvecs)):
                     frame = cv2.drawFrameAxes(frame, intrinsics, distcoeffs, rvecs[i], tvecs[i], 0.1)
 
-                print(f"Marker found for episode {episode} at frame {frame_id}")
+                # print(f"Marker found for episode {episode} at frame {frame_id}")
 
             else:
-                print("No marker 3 found for episode ", episode)
+                # print("No marker 3 found for episode ", episode)
                 detection_list.append({
                     'X_BO': None,
                     'frame_id': frame_id
@@ -192,12 +191,22 @@ def detect_aruco_markers(dataset_path:str):
                 'X_BO': X_BO.tolist(),
                 'frame_id': frame_id}
             
-            
-            if not saved_first_frame:
-                with open(os.path.join(dataset_path, "episodes", str(episode), "object_frame.json"), 'w') as f:
-                    json.dump(marker_info, f)
-                saved_first_frame = True
-                
+
+            # need to filter out bad object poses
+
+            dist = np.dot(np.array([0,0,1]), X_BO[:3,2])
+            if dist > 0.99:
+                # print(dist)
+                if not saved_first_frame:
+                    with open(os.path.join(dataset_path, "episodes", str(episode), "object_frame.json"), 'w') as f:
+                        json.dump(marker_info, f)
+                    saved_first_frame = True
+                    print("Good pose detected for episode {} at frame {}".format(episode, frame_id))
+                    break
+            else:
+                # print("Bad pose")
+                continue
+                    
             
             # detection_list.append(marker_info)
 
@@ -205,6 +214,7 @@ def detect_aruco_markers(dataset_path:str):
             json.dump(marker_info, f)
 
         cap.release()
+        # pdb.set_trace()
 
     print("Done detecting markers")
 
@@ -273,6 +283,31 @@ def compute_oriented_affordance_frame(transform_matrix):
     return T
 
 
+
+def adjust_orientation_to_z_up(matrix):
+    # matrix must be in the base frame of robot
+    # Extract the current Z direction
+    current_z = matrix[:3, 2]
+    target_z = np.array([0, 0, 1])
+
+    # Calculate the axis of rotation and the angle needed for correction
+    axis = np.cross(current_z, target_z)
+    angle = np.arccos(np.dot(current_z, target_z) / (np.linalg.norm(current_z) * np.linalg.norm(target_z)))
+
+    # Calculate the rotation matrix for aligning current_z to target_z
+    if np.linalg.norm(axis) != 0:  # Avoid division by zero if the axes are already aligned
+        axis = axis / np.linalg.norm(axis)
+        rotation_matrix = R.from_rotvec(axis * angle).as_matrix()
+    else:
+        rotation_matrix = np.eye(3)  # No rotation needed if axes are already aligned
+
+    # Construct the new transformation matrix
+    new_matrix = np.eye(4)
+    new_matrix[:3, :3] = np.dot(rotation_matrix, matrix[:3, :3])
+    new_matrix[:3, 3] = matrix[:3, 3]  # Preserve the original xyz position
+
+    return new_matrix
+
 def parse_dataset(dataset_path:str):
 
     robot = rtb.models.Panda()
@@ -327,8 +362,8 @@ def parse_dataset(dataset_path:str):
             gello_pose = robot.fkine(gello_q, "panda_link8") * X_FE
             temp_gello.append(gello_pose.A)
 
-        # get object poses
-        object_pose = np.array(raw_object_data["X_BO"])
+        # get object poses and correct its z-axis
+        object_pose = adjust_orientation_to_z_up(np.array(raw_object_data["X_BO"]))
         temp_object_poses.append(object_pose)
 
         # get oriented object pose

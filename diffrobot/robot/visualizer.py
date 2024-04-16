@@ -14,12 +14,17 @@ class RobotViz():
         self.env.add(self.gello, robot_alpha=0.5)
         self.object_pose = sg.Axes(0.1, pose = sm.SE3(1,1,1))
         self.policy_pose = sg.Axes(0.3, pose = sm.SE3(1,1,1))
+        # self.policy_pose = sg.Arrow(0.3,0.005, pose = sm.SE3(1,1,1), color = np.random.rand(3))
         self.ee_pose = sg.Axes(0.1, pose = sm.SE3(1,1,1))
         self.orientation_frame = sg.Axes(0.3, pose = sm.SE3(1,1,1))
+
+        self.cup_handle = sg.Axes(0.1, pose = sm.SE3(1,1,1))
+
         self.env.add(self.object_pose)
         self.env.add(self.ee_pose)
         self.env.add(self.policy_pose)
         self.env.add(self.orientation_frame)
+        self.env.add(self.cup_handle)
     
         self.robot.grippers[0].q = [0.03, 0.03]
 
