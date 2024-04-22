@@ -102,8 +102,14 @@ def detect_aruco_markers(dataset_path:str):
     intrinsics_fpath = os.path.join(dataset_path, "calibration/hand_eye.json")
     with open(intrinsics_fpath, 'r') as f:
         meta_data = json.load(f)
-        intrinsics = np.array(meta_data['intrinsics'])
-        X_FC = np.array(meta_data["X_FC"])
+        intrinsics_b = np.array(meta_data['back']['intrinsics'])
+        intrinsics_f = np.array(meta_data['front']['intrinsics'])
+
+        distortion_b = np.array(meta_data['back']['distortion'])
+        distortion_f = np.array(meta_data['front']['distortion'])
+
+        X_EC_b = np.array(meta_data["X_EC_b"])
+        X_EC_f = np.array(meta_data["X_EC_f"])
         X_FE = np.array(meta_data["X_FE"])
 
     # sort numerically the episodes based on folder names
@@ -113,67 +119,76 @@ def detect_aruco_markers(dataset_path:str):
     
     for episode in tqdm.tqdm(episodes):
         # Paths to the image files
-        video_dir = os.path.join(dataset_path, "episodes", str(episode), "video", "0.mp4")
+        video_dir_b = os.path.join(dataset_path, "episodes", str(episode), "video", "0.mp4") #back
+        video_dir_f = os.path.join(dataset_path, "episodes", str(episode), "video", "1.mp4") #front
 
         episode_path = os.path.join(dataset_path, "episodes", episode, "state.json")
         with open(episode_path, "r") as f:
             state_data = json.load(f)
 
         # read frames
-        cap = cv2.VideoCapture(video_dir)
+        cap_b = cv2.VideoCapture(video_dir_b)
+        cap_f = cv2.VideoCapture(video_dir_f)
+
         tvecs = None
-        ret = True
+        ret_b = True
         frame_id = -1
 
         detection_list = []
         saved_first_frame = False
 
-        while ret:
-            ret, frame = cap.read()
+        X_BO = None
+
+        while ret_b:
+            ret_b, frame_b = cap_b.read()
+            ret_f, frame_f = cap_f.read()
             frame_id += 1
-            if not ret:
+            if not ret_b:
                 continue
             # detect markers
-            corners, ids, rejectedImgPoints = cv2.aruco.detectMarkers(frame, aruco_dict, parameters=parameters)
+            corners_b, ids_b, rejectedImgPoints_b = cv2.aruco.detectMarkers(frame_b, aruco_dict, parameters=parameters)
+            corners_f, ids_f, rejectedImgPoints_f = cv2.aruco.detectMarkers(frame_f, aruco_dict, parameters=parameters)
 
             X_BE = np.array(state_data[frame_id]["X_BE"])
             X_BF = np.dot(X_BE, np.linalg.inv(X_FE))
-            X_BC = np.dot(X_BF, X_FC)
 
-            if ids is None:
-                # print("No markers found for episode ", episode)
-                detection_list.append({
-                    'X_BO': None,
-                    'frame_id': frame_id
-                })
-                continue
+            X_BC_b = np.dot(X_BE, X_EC_b)
+            X_BC_f = np.dot(X_BE, X_EC_f)
 
-            if 3 in ids:
-                idx = np.where(ids == 3)[0][0]
-                corners = np.array([corners[idx]])
-                ids = np.array([ids[idx]])
-            
-                frame = cv2.aruco.drawDetectedMarkers(frame, corners, ids)
-
-                # D455
-                # distcoeffs = np.array([-5.78085221e-02,  6.55928180e-02,  8.11965656e-05,  4.67534643e-04, -2.07200460e-02])
-                # L515
-                distcoeffs = np.array([0.0,0.0,0.0,0.0,0.0])
-
-                rvecs, tvecs, _ = cv2.aruco.estimatePoseSingleMarkers(corners, 0.025, intrinsics, distcoeffs)
-                for i in range(len(rvecs)):
-                    frame = cv2.drawFrameAxes(frame, intrinsics, distcoeffs, rvecs[i], tvecs[i], 0.1)
-
-                # print(f"Marker found for episode {episode} at frame {frame_id}")
-
+            if (ids_b is not None) and (3 in ids_b):
+                    ids = ids_b
+                    corners = corners_b
+                    frame = frame_b
+                    X_BC = X_BC_b
+                    intrinsics = intrinsics_b
+                    distcoeffs = distortion_b
+                    print("Pose detected for episode {} at frame {} in the back camera".format(episode, frame_id))
+            elif (ids_f is not None) and (3 in ids_f):
+                    ids = ids_f
+                    corners = corners_f
+                    frame = frame_f
+                    X_BC = X_BC_f
+                    intrinsics = intrinsics_f
+                    distcoeffs = distortion_f
+                    print("Pose detected for episode {} at frame {} in the front camera".format(episode, frame_id))
             else:
-                # print("No marker 3 found for episode ", episode)
+                print("No markers found for episode ", episode)
                 detection_list.append({
-                    'X_BO': None,
+                    'X_BO': X_BO.tolist() if X_BO is not None else None,
                     'frame_id': frame_id
                 })
                 continue
-                
+
+        
+            idx = np.where(ids == 3)[0][0]
+            corners = np.array([corners[idx]])
+            ids = np.array([ids[idx]])
+    
+            frame = cv2.aruco.drawDetectedMarkers(frame, corners, ids)
+
+            rvecs, tvecs, _ = cv2.aruco.estimatePoseSingleMarkers(corners, 0.025, intrinsics, distcoeffs)
+            for i in range(len(rvecs)):
+                frame = cv2.drawFrameAxes(frame, intrinsics, distcoeffs, rvecs[i], tvecs[i], 0.1)
 
             #show frame
             cv2.imshow("frame", frame)
@@ -194,27 +209,17 @@ def detect_aruco_markers(dataset_path:str):
 
             # need to filter out bad object poses
 
-            dist = np.dot(np.array([0,0,1]), X_BO[:3,2])
-            if dist > 0.99:
-                # print(dist)
-                if not saved_first_frame:
-                    with open(os.path.join(dataset_path, "episodes", str(episode), "object_frame.json"), 'w') as f:
-                        json.dump(marker_info, f)
-                    saved_first_frame = True
-                    print("Good pose detected for episode {} at frame {}".format(episode, frame_id))
-                    break
-            else:
-                # print("Bad pose")
-                continue
-                    
+            # dist = np.dot(np.array([0,0,1]), X_BO[:3,2])
+            # if dist > 0.99:
+            #     # print(dist)
             
-            # detection_list.append(marker_info)
+            detection_list.append(marker_info)
 
-        with open(os.path.join(dataset_path, "episodes", str(episode), "object_frame_last.json"), 'w') as f:
-            json.dump(marker_info, f)
+        cap_b.release()
+        cap_f.release()
 
-        cap.release()
-        # pdb.set_trace()
+        with open(os.path.join(dataset_path, "episodes", str(episode), "object_frame.json"), 'w') as f:
+            json.dump(detection_list, f)
 
     print("Done detecting markers")
 
@@ -362,13 +367,13 @@ def parse_dataset(dataset_path:str):
             gello_pose = robot.fkine(gello_q, "panda_link8") * X_FE
             temp_gello.append(gello_pose.A)
 
-        # get object poses and correct its z-axis
-        object_pose = adjust_orientation_to_z_up(np.array(raw_object_data["X_BO"]))
-        temp_object_poses.append(object_pose)
+            # get object poses and correct its z-axis
+            object_pose = adjust_orientation_to_z_up(np.array(raw_object_data[idx]["X_BO"]))
+            temp_object_poses.append(object_pose)
 
-        # get oriented object pose
-        X_BOO = compute_oriented_affordance_frame(object_pose)
-        temp_orien_object_poses.append(X_BOO.A)
+            # get oriented object pose
+            X_BOO = compute_oriented_affordance_frame(object_pose)
+            temp_orien_object_poses.append(X_BOO.A)
 
         ee_poses.append(temp_poses)
         # tactile_data.append(temp_tactile)
@@ -433,7 +438,7 @@ def extract_goal_poses(dataset_path:str):
 
 
 
-# fpath = "/home/krishan/work/2024/datasets/cup_rotate_X"
+# fpath = "/home/krishan/work/2024/datasets/cup_rotate_dual_cam"
 # decode_video(fpath)
 # detect_aruco_markers(fpath)
 # out = extract_robot_poses(fpath)

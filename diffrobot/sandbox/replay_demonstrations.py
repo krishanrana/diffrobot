@@ -10,7 +10,7 @@ from scipy.spatial.transform import Rotation as R
 from diffrobot.diffusion_policy.utils.dataset_utils import adjust_orientation_to_z_up, compute_oriented_affordance_frame
 
 
-dataset_path = "/home/krishan/work/2024/datasets/cup_rotate_X"
+dataset_path = "/home/krishan/work/2024/datasets/cup_rotate_dual_cam"
 episodes = sorted(os.listdir(os.path.join(dataset_path, "episodes")), key=lambda x: int(x))
 env = RobotViz()
 
@@ -18,7 +18,9 @@ env = RobotViz()
 camera_calibration_path = os.path.join(dataset_path, "calibration", "hand_eye.json")
 with open(camera_calibration_path, "r") as f:
     data = json.load(f)
-    X_FC = np.array(data["X_FC"])
+    X_EC_b = np.array(data["X_EC_b"])
+    X_EC_f = np.array(data["X_EC_f"])
+    
 
 
 X_FE = np.array([[0.70710678, 0.70710678, 0.0, 0.0], 
@@ -36,12 +38,18 @@ for episode in episodes:
     object_frame_path = os.path.join(dataset_path, "episodes", episode, "object_frame.json")
     with open(object_frame_path, "r") as f:
         object_data = json.load(f)
-        X_BO = np.array(object_data["X_BO"])
+        # X_BO = np.array(object_data["X_BO"])
     
     for idx, state in enumerate(data):
+
+        X_BO = np.array(object_data[idx]["X_BO"])
+
         X_BE = np.array(state["X_BE"])
-        X_BF = np.dot(X_BE, np.linalg.inv(X_FE))
-        X_BC = np.dot(X_BF, X_FC)
+        # X_BF = np.dot(X_BE, np.linalg.inv(X_FE))
+        X_BC_b = np.dot(X_BE, X_EC_b)
+        X_BC_f = np.dot(X_BE, X_EC_f)
+
+
 
 
         # if object_data[idx]["X_BO"] is not None:
@@ -70,12 +78,18 @@ for episode in episodes:
 
         # env.ee_pose.T = sm.SE3(X_BE, check=False).norm()
         target_pose = env.robot.fkine(state["gello_q"], "panda_link8") * X_FE
-        env.policy_pose.T = X_BOO
+        # env.policy_pose.T = target_pose
+        # env.policy_pose.T = X_BC_f
+
+
         env.object_pose.T = sm.SE3(X_BO, check=False).norm()
-        cup_handle_pose = env.object_pose.T * sm.SE3(0.0, 0.083, 0.0)
-        env.cup_handle.T = cup_handle_pose
+        # cup_handle_pose = env.object_pose.T * sm.SE3(0.0, 0.083, 0.0)
+        # env.cup_handle.T = X_BC_b
+        # env.cup_handle.T = cup_handle_pose
         env.step(state["robot_q"])
-        # time.sleep(0.1)
+        time.sleep(0.1)
+
+        # pdb.set_trace()
 
 
     pdb.set_trace()

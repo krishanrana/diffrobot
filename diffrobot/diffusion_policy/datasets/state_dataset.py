@@ -61,10 +61,15 @@ class DiffusionStateDataset(torch.utils.data.Dataset):
                 temp_ee_gello = []
                 temp_object_state = []
 
-                X_BO = self.all_object_poses[i][0]
-                X_BOO = self.all_oriented_object_poses[i][0]
+                # X_BO = self.all_object_poses[i][0]
+                # X_BOO = self.all_oriented_object_poses[i][0]
 
                 for j in range(len(self.all_ee_poses[i])): # for each state in the episode
+
+                    X_BO = self.all_object_poses[i][j]
+                    X_BOO = self.all_oriented_object_poses[i][j]
+                    X_OO_O = np.dot(np.linalg.inv(X_BOO), X_BO) # orientation of the object in the oriented object frame
+                    temp_object_state.append(X_OO_O)
 
                     X_BE = self.all_ee_poses[i][j]
                     # transform all ee poses to oriented object frame
@@ -77,7 +82,7 @@ class DiffusionStateDataset(torch.utils.data.Dataset):
 
                 self.object_centric_states.append(temp_ee)
                 self.object_centric_actions.append(temp_ee_gello)
-                self.object_state.append([X_BO])
+                self.object_state.append(temp_object_state)
             
             self.all_ee_poses = self.object_centric_states
             self.all_gello_poses = self.object_centric_actions
@@ -155,11 +160,11 @@ class DiffusionStateDataset(torch.utils.data.Dataset):
         # ee_forces = self.normalized_train_data['ee_forces'][episode][start_idx:end_idx]
         progress = self.normalized_train_data['progress'][episode][start_idx:end_idx].reshape(-1, 1)
 
-        object_orien = self.all_object_orien[episode][0] # orientation of object in the base frame
+        object_orien = self.all_object_orien[episode][start_idx:end_idx] # orientation of object in the base frame
         
         # create a state tensor - exclude tactile data for now
         # robot_state = np.concatenate([ee_pos, ee_orien, joint_torques, ee_forces, progress], axis=-1)
-        robot_state = np.concatenate([ee_pos, ee_orien], axis=-1)
+        robot_state = np.concatenate([ee_pos, ee_orien, object_orien], axis=-1)
 
         # action data 
         action_pos = self.normalized_train_data['ee_positions_gello'][episode][start_idx:end_idx] 
@@ -168,7 +173,6 @@ class DiffusionStateDataset(torch.utils.data.Dataset):
         robot_action = np.concatenate([action_pos, action_orien, progress], axis=-1)
     
         return {'state': robot_state,
-                'object_orientation': object_orien,
                 'action': robot_action}
  
     def __len__(self):
