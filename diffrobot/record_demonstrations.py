@@ -65,13 +65,13 @@ class DataRecorder:
         self.t.home_robot()
         self.cams = MultiRealsense(
             record_fps=self.record_fps,
-            serial_numbers=['f1230727'],
-            resolution=(1280,720),
+            serial_numbers=['128422271784', '123622270136'],
+            resolution=(640,480),
             depth_resolution=(1024,768),
             enable_depth=False
         )
         self.cams.start()
-        self.cams.set_exposure(exposure=100, gain=60)
+        self.cams.set_exposure(exposure=5000, gain=60)
         time.sleep(2)
         # self.sensor_socket = SensorSocket("131.181.33.191", 5000) #tactile sensor
         # self.marker_detector = ArucoDetector(self.cams.cameras['f1230727'], 0.025, aruco.DICT_4X4_50, 4, visualize=True)
