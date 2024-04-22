@@ -17,7 +17,7 @@ from diffrobot.diffusion_policy.utils.config_utils import get_config
 from diffrobot.robot.visualizer import RobotViz
 from diffrobot.diffusion_policy.utils.dataset_utils import compute_oriented_affordance_frame, adjust_orientation_to_z_up
 import pdb
-
+import spatialmath as sm
 
 def read_X_BF(s) -> np.ndarray:
     import spatialmath as sm # for poses
@@ -61,7 +61,7 @@ class RobotInferenceController:
         self.sh.start()
         self.cam = SingleRealsense(self.sh, "f1230727")
         self.cam.start()
-        self.marker_detector = ArucoDetector(self.cam, 0.025, aruco.DICT_4X4_50, 3, visualize=True)
+        self.marker_detector = ArucoDetector(self.cam, 0.025, aruco.DICT_4X4_50, 3, visualize=False)
         self.cam.set_exposure(exposure=100, gain=60)
         # self.sensor_socket = SensorSocket(self.sensor_ip, self.sensor_port)
         time.sleep(1.0)
@@ -111,7 +111,7 @@ class RobotInferenceController:
             #     self.X_BO = X_BO
             self.X_BO = adjust_orientation_to_z_up(X_BO)
             
-        self.robot_visualiser.object_pose.T = self.X_BO
+        # self.robot_visualiser.object_pose.T = self.X_BO
 
         return {"X_BE": X_BE, 
                 "X_BO": self.X_BO }
@@ -141,7 +141,9 @@ class RobotInferenceController:
                 self.action = out['action']
                 self.progress = out['progress']
 
-                X_BOO = compute_oriented_affordance_frame(self.obs_deque[0]['X_BO'])
+
+                temp_X_BO = self.obs_deque[0]['X_BO']
+                X_BOO = compute_oriented_affordance_frame(temp_X_BO)
 
                 waypoints = []
                 # self.panda.recover_from_errors()
@@ -158,9 +160,13 @@ class RobotInferenceController:
                     motion.set_target(to_affine(trans, orien))
 
                     robot_q = self.panda.get_joint_positions()
-                    self.robot_visualiser.ee_pose.T = self.panda.get_tcp_pose()
-                    self.robot_visualiser.policy_pose.T = self.action[i]
-                    self.robot_visualiser.orientation_frame.T = X_BOO    
+                    # self.robot_visualiser.ee_pose.T = self.panda.get_tcp_pose()
+                    # self.robot_visualiser.policy_pose.T = self.action[i]
+                    # self.robot_visualiser.orientation_frame.T = X_BOO    
+
+                    cup_handle_pose = temp_X_BO * sm.SE3(0.0, 0.083, 0.0)
+                    self.robot_visualiser.cup_handle.T = cup_handle_pose
+
                     self.robot_visualiser.step(robot_q)
                     time.sleep(0.1)
 
@@ -197,7 +203,7 @@ class RobotInferenceController:
 
 
 # Example usage
-controller = RobotInferenceController(saved_run_name='vivid-leaf-67_state',
+controller = RobotInferenceController(saved_run_name='deep-breeze-68_state',
                                       robot_ip='172.16.0.2', 
                                       sensor_ip='131.181.33.191', 
                                       sensor_port=5000)

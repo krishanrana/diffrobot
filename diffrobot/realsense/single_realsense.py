@@ -441,7 +441,11 @@ class SingleRealsense(mp.Process):
 
             # report global time
             # https://github.com/IntelRealSense/librealsense/pull/3909
-            d = pipeline_profile.get_device().first_color_sensor()
+            self.product_id= pipeline_profile.get_device().get_info(rs.camera_info.product_id)
+            if self.product_id == "0B5B": # D405
+                d = pipeline_profile.get_device().first_depth_sensor()
+            else:
+                d = pipeline_profile.get_device().first_color_sensor()
             d.set_option(rs.option.global_time_enabled, 1)
 
             # setup advanced mode
@@ -621,7 +625,12 @@ class SingleRealsense(mp.Process):
                         command[key] = value[i]
                     cmd = command['cmd']
                     if cmd == Command.SET_COLOR_OPTION.value:
-                        sensor = pipeline_profile.get_device().first_color_sensor()
+                        # get realsense product line
+                        if self.product_id == "0B5B": # D405
+                            sensor = pipeline_profile.get_device().first_depth_sensor()
+                        else:
+                            sensor = pipeline_profile.get_device().first_color_sensor()
+
                         option = rs.option(command['option_enum'])
                         value = float(command['option_value'])
                         sensor.set_option(option, value)

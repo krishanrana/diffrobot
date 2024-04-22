@@ -179,7 +179,7 @@ if __name__ == "__main__":
     # Camera
     sh = SharedMemoryManager()
     sh.start()
-    cam = SingleRealsense(sh, "f1230727")
+    cam = SingleRealsense(sh, "128422271784", resolution=(640, 480))
     cam.start()
     marker_detector = ArucoDetector(cam, 0.05, aruco.DICT_4X4_50, 9)
     # marker_detector = ArucoDetector(cam, 0.1, aruco.DICT_6X6_50, 0)
@@ -215,22 +215,23 @@ if __name__ == "__main__":
 
     
     # T_tcp_cam = calibrate_gripper_cam_least_squares(tcp_poses, marker_poses)
-    X_EV = calibrate_gripper_cam_least_squares(tcp_poses, marker_poses)
-    X_VE = np.linalg.inv(X_EV)
-    print(X_EV)
-    calculate_error(X_EV, tcp_poses, marker_poses)
-    X_WE = robot.get_tcp_pose()
-    X_WV = X_WE @ X_EV
+    X_EC = calibrate_gripper_cam_least_squares(tcp_poses, marker_poses)
+    X_CE = np.linalg.inv(X_EC)
+    print(X_EC)
+    calculate_error(X_EC, tcp_poses, marker_poses)
+    X_BE = robot.get_tcp_pose()
+    X_BC = X_BE @ X_EC
     # save calibration
     import json
     res = {
-        "X_EV": X_EV.tolist(),
+        "X_EC": X_EC.tolist(),
     }
     intrinsics = cam.get_intrinsics().tolist()
     res["intrinsics"] = intrinsics
     
     with open("calibration_data/hand_eye.json", "w") as f:
         json.dump(res, f)
+
 
     # visualize_calibration_gripper_cam(cam, T_tcp_cam)
 
@@ -247,10 +248,10 @@ if __name__ == "__main__":
     ground_box.translate([-0.25, -0.25, -0.005])
     geometries.append(ground_box)
     axis = o3d.geometry.TriangleMesh.create_coordinate_frame(size=0.02)
-    axis.transform(X_WV)
+    axis.transform(X_BC)
     geometries.append(axis)
     axis = o3d.geometry.TriangleMesh.create_coordinate_frame(size=0.03)
-    axis.transform(X_WE)
+    axis.transform(X_BE)
     geometries.append(axis)
 
     o3d.visualization.draw_geometries(geometries)
