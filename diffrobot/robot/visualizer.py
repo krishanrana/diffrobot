@@ -10,14 +10,13 @@ class RobotViz():
         self.env.launch()
         self.robot = rtb.models.Panda()
         self.gello = rtb.models.Panda()
-        self.env.add(self.robot)
+        self.env.add(self.robot, robot_alpha=0.5)
         self.env.add(self.gello, robot_alpha=0.5)
         self.object_pose = sg.Axes(0.1, pose = sm.SE3(1,1,1))
         self.policy_pose = sg.Axes(0.3, pose = sm.SE3(1,1,1))
         # self.policy_pose = sg.Arrow(0.3,0.005, pose = sm.SE3(1,1,1), color = np.random.rand(3))
         self.ee_pose = sg.Axes(0.1, pose = sm.SE3(1,1,1))
         self.orientation_frame = sg.Axes(0.3, pose = sm.SE3(1,1,1))
-
         self.cup_handle = sg.Axes(0.1, pose = sm.SE3(1,1,1))
 
         self.env.add(self.object_pose)
