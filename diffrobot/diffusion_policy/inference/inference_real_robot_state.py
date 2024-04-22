@@ -4,11 +4,13 @@ import json
 import collections
 import reactivex as rx
 from reactivex import operators as ops
-from multiprocessing.managers import SharedMemoryManager
+# from multiprocessing.managers import SharedMemoryManager
+from diffrobot.realsense.multi_realsense import MultiRealsense
+
 import torch
 import cv2
 # Import necessary modules from your libraries
-from diffrobot.realsense.single_realsense import SingleRealsense
+# from diffrobot.realsense.single_realsense import SingleRealsense
 from diffrobot.calibration.aruco_detector import ArucoDetector, aruco
 from diffrobot.tactile_sensors.xela import SensorSocket
 from diffrobot.diffusion_policy.diffusion_policy import DiffusionPolicy
@@ -57,12 +59,21 @@ class RobotInferenceController:
                                       saved_run_name=self.saved_run_name)
 
     def setup_cameras_and_sensors(self):
-        self.sh = SharedMemoryManager()
-        self.sh.start()
-        self.cam = SingleRealsense(self.sh, "f1230727")
-        self.cam.start()
-        self.marker_detector = ArucoDetector(self.cam, 0.025, aruco.DICT_4X4_50, 3, visualize=False)
-        self.cam.set_exposure(exposure=100, gain=60)
+        # self.sh = SharedMemoryManager()
+        # self.sh.start()
+        # self.cam = SingleRealsense(self.sh, "f1230727")
+
+        self.cams = MultiRealsense(
+            record_fps=self.record_fps,
+            serial_numbers=['128422271784', '123622270136'],
+            resolution=(640,480),
+            depth_resolution=(1024,768),
+            enable_depth=False
+        )
+        self.cams.start()
+        self.cams.set_exposure(exposure=5000, gain=60)
+        self.marker_detector_front = ArucoDetector(self.cams['123622270136'], 0.025, aruco.DICT_4X4_50, 3, visualize=False)
+        self.marker_detector_back = ArucoDetector(self.cams['128422271784'], 0.025, aruco.DICT_4X4_50, 4, visualize=False)
         # self.sensor_socket = SensorSocket(self.sensor_ip, self.sensor_port)
         time.sleep(1.0)
 
@@ -94,14 +105,21 @@ class RobotInferenceController:
             self.X_FC = np.array(trans['X_FC'])
 
     def get_marker(self):
-        res = self.marker_detector.estimate_pose()
-        return None if res is None else res
+        marker_front = self.marker_detector_front.estimate_pose()
+        marker_back = self.marker_detector_back.estimate_pose()
 
+        if marker_front is not None:
+            return marker_front
+        elif marker_back is not None:
+            return marker_back
+        else:
+            return None
+        
     def get_obs(self):
         s = self.panda.get_state()
         X_BE = np.array(s.O_T_EE).reshape(4,4).T
         X_BF = read_X_BF(s)
-        X_CO = self.marker_detector.estimate_pose()
+        X_CO = self.get_marker()
         if X_CO is not None:
             X_BC = X_BF @ self.X_FC
             X_BO = X_BC @ X_CO
@@ -110,11 +128,14 @@ class RobotInferenceController:
             # if dist > 0.99: # filter out bad object poses
             #     self.X_BO = X_BO
             self.X_BO = adjust_orientation_to_z_up(X_BO)
+            self.X_BOO = compute_oriented_affordance_frame(self.X_BO)
+            self.X_OO_O = np.dot(np.linalg.inv(self.X_BOO), self.X_BO) 
             
         # self.robot_visualiser.object_pose.T = self.X_BO
 
         return {"X_BE": X_BE, 
-                "X_BO": self.X_BO }
+                "X_BO": self.X_BO,
+                "X_OO_O": self.X_OO_O,}
     
     def start_inference(self):
         obs_stream = rx.interval(1.0/10.0, scheduler=rx.scheduler.NewThreadScheduler()) \
@@ -203,7 +224,7 @@ class RobotInferenceController:
 
 
 # Example usage
-controller = RobotInferenceController(saved_run_name='deep-breeze-68_state',
+controller = RobotInferenceController(saved_run_name='rose-shape-69_state',
                                       robot_ip='172.16.0.2', 
                                       sensor_ip='131.181.33.191', 
                                       sensor_port=5000)
