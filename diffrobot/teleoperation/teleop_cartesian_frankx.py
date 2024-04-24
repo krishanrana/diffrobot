@@ -129,7 +129,7 @@ class Teleop:
 		)
 		#self.panda.frankx.set_cartesian_impedance([30.0,30.0,30.0,10.0,10.0,10.0])
 		# self.motion = self.panda.start_cartesian_controller()
-		self.motion = self.panda.start_impedance_controller(800, 40, 1)
+		self.motion = self.panda.start_impedance_controller(830, 40, 1)
 		while not self.stop_requested:
 			gello_q = self.gello.get_joint_state()
 			# pose = panda_py.fk(np.round(gello_q[:7],4))
@@ -151,9 +151,9 @@ class Teleop:
 			target_pose = self.robot_visualiser.robot.fkine(np.array(gello_q[:7]), "panda_link8") * self.robot_visualiser.X_FE
 			target_pose = target_pose.A
 
-			# self.robot_visualiser.ee_pose.T = sm.SE3((np.array(robot_state.O_T_EE)).reshape(4,4).T, check=False).norm()	
-			# self.robot_visualiser.policy_pose.T = target_pose 
-			# self.robot_visualiser.step(robot_state.q, gello_q[:7])
+			self.robot_visualiser.ee_pose.T = sm.SE3((np.array(robot_state.O_T_EE)).reshape(4,4).T, check=False).norm()	
+			self.robot_visualiser.policy_pose.T = target_pose 
+			self.robot_visualiser.step(robot_state.q, gello_q[:7])
 			
 			self.trans, self.orien = matrix_to_pos_orn(target_pose)
 
@@ -255,8 +255,8 @@ if __name__ == "__main__":
 			teleop.gripper.close()
 			teleop.saved_trans = teleop.trans
 			teleop.saved_orien = teleop.orien
-			teleop.constrain_pose = True
+			teleop.constrain_pose = False
 
-	# teleop.gello_gripper_stream_2.subscribe(lambda x: grasp(x))
+	teleop.gello_gripper_stream.subscribe(lambda x: grasp(x))
 	# teleop.gello_button_stream.subscribe(lambda x: relinquish_and_home())
 	teleop.take_control()
