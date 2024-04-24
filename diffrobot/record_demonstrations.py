@@ -26,21 +26,17 @@ class DataRecorder:
         self.cams = None
         self.sensor_socket = None
         self.idx = params.idx
-        
         self.window_name = "Data Recorder"
         self.font = cv2.FONT_HERSHEY_SIMPLEX
         self.demo_state_text = "Resetting..."
         self.demo_number_text = f"Demo Number: {self.idx}"
-
         self.record_data = False
         self.toggle_key = ord(' ')  # ASCII code for space bar
         self.discard_key = ord('d')  # ASCII code for 'd'
         self.key = None
         self.disposable = None
         self.states = []
-
-        
-        # run at 10hz on new thread
+        self.phase = 0.0
    
     def record_state(self, s):
         gello_q, robot_state, gripper_width = s["gello_q"], s["robot_state"], s["gripper_width"]
@@ -52,7 +48,8 @@ class DataRecorder:
             "joint_torques": np.array(robot_state.tau_ext_hat_filtered).tolist(),
             "ee_forces": np.array(robot_state.K_F_ext_hat_K).tolist(),
             "gello_q": np.array(gello_q[:7]).tolist(),
-            "gripper_state": gripper_width
+            "gripper_state": gripper_width,
+            "phase": self.phase,
         }
         self.states.append(state)
 
@@ -98,7 +95,6 @@ class DataRecorder:
             self.cams.start_recording(str(path))
             self.disposable = self.record_stream.subscribe(lambda x: self.record_state(x))
             print("Recording demonstration {}".format(self.idx))
-
         else:
             self.demo_state_text = "Resetting..."
             if self.disposable:
@@ -108,8 +104,7 @@ class DataRecorder:
                 if not discard:
                     with open(f"data/{self.params.name}/{self.idx}/state.json", "w") as f:
                         json.dump(self.states, f, indent=4)
-                    self.idx += 1
-                
+                    self.idx += 1    
             print("Recording stopped.")
             print("Resetting...")
 
@@ -142,8 +137,11 @@ class DataRecorder:
                 self.toggle_record()
             elif self.key == self.discard_key:
                 self.toggle_record(discard=True)
+            elif self.key == ord('t'): #transition to next phase
+                self.phase += 1.0
+            elif self.key == ord('q'):
+                break
             
-
     # def _record_data(self):
     #     path = Path(f"data/{self.params.name}/{self.idx}/video")
     #     path.mkdir(parents=True, exist_ok=True)
@@ -177,7 +175,6 @@ class DataRecorder:
     #     with open(f"data/{self.params.name}/{self.idx}/state.json", "w") as f:
     #         json.dump(state, f, indent=4)
         
-
     def stop(self):
         self.cams.stop(wait=True)
         self.t.relinquish()
