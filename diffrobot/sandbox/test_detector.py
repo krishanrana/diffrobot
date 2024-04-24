@@ -45,12 +45,15 @@ with open('camera_info.json', 'w') as f:
 
 
 
-pdb.set_trace()
+# pdb.set_trace()
 
-vis.run()
-# marker_detector = ArucoDetector(cam, 0.025, aruco.DICT_4X4_50, 3, visualize=True)
-# while True:
-#     print(marker_detector.estimate_pose())
+# vis.run()
+marker_detector_1 = ArucoDetector(cams.cameras['128422271784'], 0.025, aruco.DICT_4X4_50, 3, visualize=True)
+marker_detector_2 = ArucoDetector(cams.cameras['123622270136'], 0.025, aruco.DICT_4X4_50, 3, visualize=True)
+
+while True:
+    print(marker_detector_1.estimate_pose())
+    print(marker_detector_2.estimate_pose())
 
 
 

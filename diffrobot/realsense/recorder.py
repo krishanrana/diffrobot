@@ -27,8 +27,8 @@ class VideoRecorder:
         # self.x265_params = '-x265-params "lossless=1 -tune=zerolatency"'
         self.x265_params = ''
         if self.recorder_type == "color":
-            # encoder = "hevc_nvenc"
-            encoder = "hevc" # if hardware limit of 5 reached use this instead
+            encoder = "hevc_nvenc"
+            # encoder = "hevc" # if hardware limit of 5 reached use this instead
             self.get_command = lambda path: f'ffmpeg {self.loglevel} -y -s {self.width}x{self.height} -pixel_format rgb24 -f rawvideo -r {self.fps} -i pipe: -vcodec {encoder} -pix_fmt yuv420p {path} -threads 1 {self.x265_params}'
         elif self.recorder_type == "depth":
             encoder = "hevc"

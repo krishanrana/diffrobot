@@ -64,16 +64,14 @@ class RobotInferenceController:
         # self.cam = SingleRealsense(self.sh, "f1230727")
 
         self.cams = MultiRealsense(
-            record_fps=self.record_fps,
             serial_numbers=['128422271784', '123622270136'],
             resolution=(640,480),
-            depth_resolution=(1024,768),
-            enable_depth=False
         )
+
         self.cams.start()
         self.cams.set_exposure(exposure=5000, gain=60)
-        self.marker_detector_front = ArucoDetector(self.cams['123622270136'], 0.025, aruco.DICT_4X4_50, 3, visualize=False)
-        self.marker_detector_back = ArucoDetector(self.cams['128422271784'], 0.025, aruco.DICT_4X4_50, 4, visualize=False)
+        self.marker_detector_front = ArucoDetector(self.cams.cameras['123622270136'], 0.025, aruco.DICT_4X4_50, 3, visualize=False)
+        self.marker_detector_back = ArucoDetector(self.cams.cameras['128422271784'], 0.025, aruco.DICT_4X4_50, 3, visualize=False)
         # self.sensor_socket = SensorSocket(self.sensor_ip, self.sensor_port)
         time.sleep(1.0)
 
@@ -82,7 +80,7 @@ class RobotInferenceController:
         # self.panda.set_dynamic_rel(1.0, accel_rel=0.2, jerk_rel=0.05)
         # self.panda.set_dynamic_rel(0.4, accel_rel=0.005, jerk_rel=0.05)
 
-        self.panda.set_dynamic_rel(0.1, accel_rel=0.2, jerk_rel=0.05)
+        self.panda.set_dynamic_rel(0.4, accel_rel=0.2, jerk_rel=0.05)
         self.panda.frankx.set_collision_behavior(
 			[30.0, 30.0, 30.0, 30.0, 30.0, 30.0, 30.0],
 			[30.0, 30.0, 30.0, 30.0, 30.0, 30.0, 30.0],
@@ -93,24 +91,47 @@ class RobotInferenceController:
         # self.panda.move_to_joints([0.00487537496966383, 0.140028320465115, -0.4990375894491169,
                                 #    -2.148368699077172, 1.0965412648672856, 1.1600619074643155, 0.0020968194298945724])
 
-        # self.panda.move_to_joints(np.deg2rad([-90, 0, 0, -90, 0, 90, 45]))
-        self.panda.move_to_joints([-1.5665102330276086, 0.06832033950119581, 0.07771335946889425, -2.02817877543619, -0.005529185095817712, 2.2603790660269496, 0.7730436232405306])
+        # self.panda.move_to_joints(np.deg2rad([0, 0, 0, -90, 0, 90, 45]))
+        # self.panda.move_to_joints([-1.5665102330276086, 0.06832033950119581, 0.07771335946889425, -2.02817877543619, -0.005529185095817712, 2.2603790660269496, 0.7730436232405306])
+
+        self.search_for_objects()
         
         self.load_transforms()
 
+    def search_for_objects(self):
+        # this function will sweep the arm across its workspace to search for the intial pose of all objects
+        # these poses will be stored in the base frame of the robot
+        # Once these poses are found the robot will initiate the policy
+        
+        # create a sweep path for the impedance controller to follow
+        
+        for sweep_angle in np.linspace(-90, 90, 5):
+            self.panda.move_to_joints(np.deg2rad([sweep_angle, 0, 0, -90, 0, 90, 45]))
+
+            object_pose = self.marker_detector_front.estimate_pose()
+
+            if object_pose is not None:
+                break
+
+
+
     def load_transforms(self):
         self.X_BO = None
-        with open(f'../runs/{self.saved_run_name}/transforms.json', 'r') as f:
+        self.X_OO_O = None
+        with open(f'../runs/{self.saved_run_name}/hand_eye.json', 'r') as f:
             trans = json.load(f)
-            self.X_FC = np.array(trans['X_FC'])
+            self.X_EC_b = np.array(trans['X_EC_b'])
+            self.X_EC_f = np.array(trans['X_EC_f'])
 
     def get_marker(self):
         marker_front = self.marker_detector_front.estimate_pose()
         marker_back = self.marker_detector_back.estimate_pose()
 
         if marker_front is not None:
+            self.X_EC = self.X_EC_f
             return marker_front
         elif marker_back is not None:
+            self.X_EC = self.X_EC_b
             return marker_back
         else:
             return None
@@ -118,10 +139,11 @@ class RobotInferenceController:
     def get_obs(self):
         s = self.panda.get_state()
         X_BE = np.array(s.O_T_EE).reshape(4,4).T
-        X_BF = read_X_BF(s)
+        # X_BF = read_X_BF(s)
         X_CO = self.get_marker()
         if X_CO is not None:
-            X_BC = X_BF @ self.X_FC
+            # X_BC = X_BF @ self.X_FC
+            X_BC = X_BE @ self.X_EC
             X_BO = X_BC @ X_CO
 
             # dist = np.dot(np.array([0,0,1]), X_BO[:3,2])
@@ -144,7 +166,11 @@ class RobotInferenceController:
             .subscribe(lambda x: self.obs_deque.append(x))  
       
         # motion = self.panda.start_impedance_controller(200, 30, 5)
-        motion = self.panda.start_impedance_controller(800, 40, 1)
+        motion = self.panda.start_impedance_controller(830, 40, 1)
+
+
+        
+
 
         while True:
             done = False
@@ -181,12 +207,12 @@ class RobotInferenceController:
                     motion.set_target(to_affine(trans, orien))
 
                     robot_q = self.panda.get_joint_positions()
-                    # self.robot_visualiser.ee_pose.T = self.panda.get_tcp_pose()
-                    # self.robot_visualiser.policy_pose.T = self.action[i]
-                    # self.robot_visualiser.orientation_frame.T = X_BOO    
+                    self.robot_visualiser.ee_pose.T = self.panda.get_tcp_pose()
+                    self.robot_visualiser.policy_pose.T = self.action[i]
+                    self.robot_visualiser.orientation_frame.T = X_BOO    
 
-                    cup_handle_pose = temp_X_BO * sm.SE3(0.0, 0.083, 0.0)
-                    self.robot_visualiser.cup_handle.T = cup_handle_pose
+                    # cup_handle_pose = temp_X_BO * sm.SE3(0.0, 0.083, 0.0)
+                    # self.robot_visualiser.cup_handle.T = cup_handle_pose
 
                     self.robot_visualiser.step(robot_q)
                     time.sleep(0.1)
