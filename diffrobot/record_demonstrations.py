@@ -37,6 +37,7 @@ class DataRecorder:
         self.disposable = None
         self.states = []
         self.phase = 0.0
+        self.gripper_action = 0.0
    
     def record_state(self, s):
         gello_q, robot_state, gripper_width = s["gello_q"], s["robot_state"], s["gripper_width"]
@@ -49,6 +50,7 @@ class DataRecorder:
             "ee_forces": np.array(robot_state.K_F_ext_hat_K).tolist(),
             "gello_q": np.array(gello_q[:7]).tolist(),
             "gripper_state": gripper_width,
+            "gripper_action": self.gripper_action,
             "phase": self.phase,
         }
         self.states.append(state)
@@ -65,7 +67,7 @@ class DataRecorder:
             serial_numbers=['128422271784', '123622270136'],
             resolution=(640,480),
             depth_resolution=(640,480),
-            enable_depth=True
+            enable_depth=False
         )
         self.cams.start()
         self.cams.set_exposure(exposure=5000, gain=60)
@@ -77,9 +79,11 @@ class DataRecorder:
     def grasp(self, x):
         print(x)
         if x == "open":
+            self.gripper_action = 0.0
             self.t.gripper.open()
             # self.t.constrain_pose = False
         else:
+            self.gripper_action = 1.0
             self.t.gripper.close()
             self.t.saved_trans = self.t.trans
             self.t.saved_orien = self.t.orien
@@ -97,6 +101,7 @@ class DataRecorder:
             print("Recording demonstration {}".format(self.idx))
         else:
             self.demo_state_text = "Resetting..."
+            self.phase = 0.0
             if self.disposable:
                 self.disposable.dispose()
                 self.cams.stop_recording()
@@ -120,6 +125,7 @@ class DataRecorder:
         # Add text for demonstration state and number
         cv2.putText(frame, self.demo_state_text, (50, 180), self.font, 1, (0, 0, 0), 2, cv2.LINE_AA)
         cv2.putText(frame, f"Demo Number: {self.idx}", (50, 250), self.font, 1, (0, 0, 0), 2, cv2.LINE_AA)
+        cv2.putText(frame, f"Phase: {self.phase}", (50, 320), self.font, 1, (0, 0, 0), 2, cv2.LINE_AA)
 
         # Show the window
         cv2.imshow(self.window_name, frame)
@@ -141,39 +147,6 @@ class DataRecorder:
                 self.phase += 1.0
             elif self.key == ord('q'):
                 break
-            
-    # def _record_data(self):
-    #     path = Path(f"data/{self.params.name}/{self.idx}/video")
-    #     path.mkdir(parents=True, exist_ok=True)
-    #     self.cams.start_recording(str(path))
-    #     state = []
-    #     desired_time = 1.0 / self.record_fps
-    #     self.update_window()
-    #     while self.record_data:
-    #         start = time.time()
-    #         state.append({
-    #             "X_BE": np.array(self.t.get_tcp_pose()).tolist(),
-    #             "robot_q": np.array(self.t.get_joint_positions()).tolist(),
-    #             "tactile_sensors": np.array(self.sensor_socket.get_forces()).tolist(),
-    #             "joint_torques": np.array(self.t.get_joint_torques()).tolist(),
-    #             "ee_forces": np.array(self.t.get_ee_forces()).tolist(),
-    #             "gello_q": np.array(self.t.gello.get_joint_state()[:7]).tolist(),
-    #             "gripper_state": self.t.gripper.width()
-    #         })
-    #         self.cams.record_frame()
-
-    #         self.key = cv2.pollKey() & 0xFF
-    #         if self.key == self.toggle_key or self.key == self.discard_key:
-    #             self.toggle_record()
-
-    #         duration = time.time() - start
-    #         sleep_for = max(desired_time - duration, 0)
-    #         time.sleep(sleep_for)
-    #         #print(f"Time: {time.time()-start} - Slept for {sleep_for} - Actual Freq: {1.0/(time.time()-start)} Hz - Required Freq: {self.record_fps} Hz")
-
-    #     self.cams.stop_recording()
-    #     with open(f"data/{self.params.name}/{self.idx}/state.json", "w") as f:
-    #         json.dump(state, f, indent=4)
         
     def stop(self):
         self.cams.stop(wait=True)
