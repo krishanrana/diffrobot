@@ -32,6 +32,7 @@ class Teleop:
 		self.saved_trans = None
 		self.saved_orien = None
 		self._callback = None
+		self.gripper_action = 0.0
 
 
 		self.robot_visualiser = RobotViz()
@@ -151,9 +152,9 @@ class Teleop:
 			target_pose = self.robot_visualiser.robot.fkine(np.array(gello_q[:7]), "panda_link8") * self.robot_visualiser.X_FE
 			target_pose = target_pose.A
 
-			self.robot_visualiser.ee_pose.T = sm.SE3((np.array(robot_state.O_T_EE)).reshape(4,4).T, check=False).norm()	
-			self.robot_visualiser.policy_pose.T = target_pose 
-			self.robot_visualiser.step(robot_state.q, gello_q[:7])
+			# self.robot_visualiser.ee_pose.T = sm.SE3((np.array(robot_state.O_T_EE)).reshape(4,4).T, check=False).norm()	
+			# self.robot_visualiser.policy_pose.T = target_pose 
+			# self.robot_visualiser.step(robot_state.q, gello_q[:7])
 			
 			self.trans, self.orien = matrix_to_pos_orn(target_pose)
 
@@ -249,9 +250,11 @@ if __name__ == "__main__":
 	def grasp(x):
 		print(x)
 		if x == "open":
+			teleop.gripper_action = 0.0
 			teleop.gripper.open()
 			teleop.constrain_pose = False
 		else:
+			teleop.gripper_action = 1.0
 			teleop.gripper.close()
 			teleop.saved_trans = teleop.trans
 			teleop.saved_orien = teleop.orien
