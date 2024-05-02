@@ -4,7 +4,7 @@ import torch
 import pdb
 import os
 from torchvision.io import read_image
-from diffrobot.diffusion_policy.utils.dataset_utils import create_sample_indices, get_data_stats, normalize_data
+from diffrobot.diffusion_policy.utils.dataset_utils import DatasetUtils
 
 
 

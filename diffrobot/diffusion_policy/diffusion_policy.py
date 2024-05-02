@@ -15,7 +15,7 @@ from diffrobot.diffusion_policy.datasets.state_dataset import DiffusionStateData
 import wandb
 import pdb
 from torchvision.transforms import Compose, Resize, RandomCrop
-from diffrobot.diffusion_policy.utils.dataset_utils import normalize_data, unnormalize_data
+from diffrobot.diffusion_policy.utils.dataset_utils import DatasetUtils
 import yaml
 import json
 import copy
@@ -25,7 +25,6 @@ import numpy as np
 from diffrobot.diffusion_policy.utils.im_utils import FixedCropTransform
 from diffrobot.diffusion_policy.utils.config_utils import get_config
 from diffrobot.diffusion_policy.utils.rotation_transforms import rotation_6d_to_matrix, matrix_to_rotation_6d
-from diffrobot.diffusion_policy.utils.dataset_utils import compute_oriented_affordance_frame
 
 
 # torch.backends.cuda.matmul.allow_tf32 = True
@@ -161,10 +160,10 @@ class DiffusionPolicy():
                             "action_horizon": self.params.action_horizon,
                             "action_frame": self.params.action_frame,}
             
-            self.train_dataset = DatasetClass(phase='train', **dataset_params, 
+            self.train_dataset = DatasetClass(stage='train', **dataset_params, 
                                               transform=self.transform if policy_type == 'vision' else None)
             
-            self.val_dataset = DatasetClass(phase='val', **dataset_params, 
+            self.val_dataset = DatasetClass(stage='val', **dataset_params, 
                                             transform=self.transform if policy_type == 'vision' else None)
 
             self.stats = self.train_dataset.stats
