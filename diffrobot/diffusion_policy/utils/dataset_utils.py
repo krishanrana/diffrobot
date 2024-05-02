@@ -6,67 +6,301 @@ import numpy as np
 import tqdm
 from scipy.spatial.transform import Rotation as R
 import pickle
-
 from diffrobot.diffusion_policy.utils.rotation_transforms import rotation_6d_to_matrix, matrix_to_rotation_6d
 import roboticstoolbox as rtb
 import spatialmath as sm
+import pandas as pd
 
 
-def create_sample_indices(sequence_length:int,
-                          dataset_path:str):
-    
-    # iterate through all the episode folders
-    indices = list()
+class DatasetUtils:
+    def __init__(self, dataset_path:str):
+        self.dataset_path = dataset_path
+        self.robot = rtb.models.Panda()
+        self.X_FE = np.array([[0.70710678, 0.70710678, 0.0, 0.0], 
+                     [-0.70710678, 0.70710678, 0, 0], 
+                     [0.0, 0.0, 1.0, 0.2], 
+                     [0.0, 0.0, 0.0, 1.0]])
+        self.X_FE = sm.SE3(self.X_FE, check=False).norm()    
 
-    # sort numerically the episodes based on folder names
-    episodes = sorted(os.listdir(os.path.join(dataset_path, "episodes")), key=lambda x: int(x))
-    for episode in episodes:
-        # read the state.json file which consists of a list of dictionaries
-        state = json.load(open(os.path.join(dataset_path, "episodes", episode, "state.json")))
 
-        # get the length of the episode
-        episode_length = len(state)
-        # iterate through the episode
-        range_idx = episode_length - (sequence_length + 2)
-        for idx in range(range_idx):
-            # get the start and end index of the sequence
-            buffer_start_idx = idx
-            buffer_end_idx = idx + sequence_length
-            indices.append([int(episode), buffer_start_idx, buffer_end_idx])
-            assert buffer_end_idx - buffer_start_idx == sequence_length
+    def create_rlds(self):
+        rlds = {}
+        episodes = sorted(os.listdir(os.path.join(self.dataset_path, "episodes")), key=lambda x: int(x))
+
+        for episode in episodes:
+            episode_path = os.path.join(self.dataset_path, "episodes", episode, "state.json")
+            X_B_O1_path = os.path.join(self.dataset_path, "episodes", episode, "cup_frames.json")
+            X_B_O2_path = os.path.join(self.dataset_path, "episodes", episode, "saucer_frames.json")
+
+            with open(episode_path, "r") as f:
+                data = json.load(f)
+            with open(X_B_O1_path, "r") as f:
+                dynamic_object_data = json.load(f)
+            with open(X_B_O2_path, "r") as f:
+                static_object_data = json.load(f)['X_BO']
+
+            # create a dataframe
+            df = pd.DataFrame(data)
+            df['idx'] = range(len(df))
+            df_dobject = pd.DataFrame(dynamic_object_data)
+            
+            # get the number of phases
+            phases = df['phase'].unique()
+
+            rlds[episode] = {}
+            for phase in phases:
+                phase_data = df[df['phase'] == phase]
+
+                X_BE_follower = phase_data['X_BE'].tolist()
+                X_BE_leader = [(self.robot.fkine(np.array(q), "panda_link8") * self.X_FE).A for q in phase_data['gello_q']]
+
+                X_B_O1 = df_dobject[df_dobject['frame_id'].isin(phase_data['idx'])]
+                
+                # fix z axis of object poses
+                X_B_O1 = [self.adjust_orientation_to_z_up(np.array(pose)) for pose in X_B_O1['X_BO']]
+                X_B_O2 = self.adjust_orientation_to_z_up(np.array(static_object_data))
+                # broadcast O2 to the length of O1
+                X_B_O2 = np.tile(X_B_O2, (len(X_B_O1), 1, 1))
+
+                # compute oriented object poses
+                X_B_OO1 = [self.compute_oriented_affordance_frame(pose).A for pose in X_B_O1]
+                X_B_OO2 = [self.compute_oriented_affordance_frame(pose, base_frame=X_B_OO1[0]).A for pose in X_B_O2]
+
+                progress = self.sigmoid_progress(len(phase_data))
+
+                X_OO1_O1 = [np.linalg.inv(x_b_oo1) @ x_bo1 for x_b_oo1, x_bo1 in zip(X_B_OO1, X_B_O1)]
+                X_OO2_O2 = [np.linalg.inv(x_b_oo2) @ x_bo2 for x_b_oo2, x_bo2 in zip(X_B_OO2, X_B_O2)]
+
+                if phase == 0:     
+                    X_OO_E_follower = [np.linalg.inv(x_b_oo1) @ x_be for x_b_oo1, x_be in zip(X_B_OO1, X_BE_follower)]
+                    X_OO_E_leader = [np.linalg.inv(x_b_oo1) @ x_be for x_b_oo1, x_be in zip(X_B_OO1, X_BE_leader)]
+                    orien_object = [matrix_to_rotation_6d(pose[:3, :3]) for pose in X_OO1_O1]
+                elif phase == 1:
+                    X_OO_E_follower = [np.linalg.inv(x_b_oo2) @ x_be for x_b_oo2, x_be in zip(X_B_OO2, X_BE_follower)]
+                    X_OO_E_leader = [np.linalg.inv(x_b_oo2) @ x_be for x_b_oo2, x_be in zip(X_B_OO2, X_BE_leader)]
+                    orien_object = [matrix_to_rotation_6d(pose[:3, :3]) for pose in X_OO2_O2]
+
+                pos_follower, orien_follower = self.extract_robot_pos_orien(X_BE_follower)
+                pos_leader, orien_leader = self.extract_robot_pos_orien(X_BE_leader)
+
+                rlds[episode][str(int(phase))] = {
+                    'X_BE_follower': X_BE_follower,
+                    'X_BE_leader': X_BE_leader,
+                    'robot_q': phase_data['robot_q'].tolist(),
+                    'gello_q': phase_data['gello_q'].tolist(),
+                    'gripper_state': phase_data['gripper_state'].tolist(),
+                    'gripper_action': phase_data['gripper_action'].tolist(),
+                    'joint_torques': phase_data['joint_torques'].tolist(),
+                    'ee_forces': phase_data['ee_forces'].tolist(),
+                    'X_B_O1': X_B_O1,
+                    'X_B_O2': X_B_O2,
+                    'X_B_OO1': X_B_OO1,
+                    'X_B_OO2': X_B_OO2,
+                    'progress': progress,
+                    'X_OO_E_follower': X_OO_E_follower,
+                    'X_OO_E_leader': X_OO_E_leader,
+                    'pos_follower': pos_follower,
+                    'orien_follower': orien_follower,
+                    'pos_leader': pos_leader,
+                    'orien_leader': orien_leader,
+                    'orien_object': orien_object,
+                    'phase': phase_data['phase'].to_list()
+                     }
+                
+        stats = self.get_stats_rlds(rlds)
+        rlds = self.normalize_rlds(rlds, stats)
+
+        # save the rlds
+        with open(os.path.join(self.dataset_path, "rlds.pkl"), 'wb') as f:
+            pickle.dump(rlds, f)
         
-    indices = np.array(indices)
-    return indices
+        # save the stats
+        with open(os.path.join(self.dataset_path, "stats.pkl"), 'wb') as f:
+            pickle.dump(stats, f)
+        
+        return rlds, stats
+    
+
+    def get_stats_rlds(self, rlds):
+
+        all_pos_follower = []
+        all_pos_leader = []
+        all_gripper_state = []
+        all_gripper_action = []
+        all_progress = []
+        all_phase = []
+
+        for episode in rlds:
+            ep_data = rlds[episode]
+            for phase in ep_data:
+                phase_data = ep_data[phase]
+                all_pos_follower.append(phase_data['pos_follower'])
+                all_pos_leader.append(phase_data['pos_leader'])
+                all_gripper_state.append(phase_data['gripper_state'])
+                all_gripper_action.append(phase_data['gripper_action'])
+                all_progress.append(phase_data['progress'])
+                all_phase.append(phase_data['phase'])
+        
+        stats = dict()
+        stats['pos_follower'] = self.get_data_stats(all_pos_follower)
+        stats['pos_leader'] = self.get_data_stats(all_pos_leader)
+        stats['gripper_state'] = self.get_data_stats(all_gripper_state)
+        stats['gripper_action'] = self.get_data_stats(all_gripper_action)
+        stats['progress'] = self.get_data_stats(all_progress)
+        stats['phase'] = self.get_data_stats(all_phase)
+
+        return stats
+    
+    def normalize_rlds(self, rlds, stats):
+        for episode in rlds:
+            ep_data = rlds[episode]
+            for phase in ep_data:
+                phase_data = ep_data[phase]
+                phase_data['pos_follower'] = self.normalize_data(phase_data['pos_follower'], stats['pos_follower'])
+                phase_data['pos_leader'] = self.normalize_data(phase_data['pos_leader'], stats['pos_leader'])
+                phase_data['gripper_state'] = self.normalize_data(phase_data['gripper_state'], stats['gripper_state'])
+                phase_data['gripper_action'] = self.normalize_data(phase_data['gripper_action'], stats['gripper_action'])
+                phase_data['progress'] = self.normalize_data(phase_data['progress'], stats['progress'])
+                phase_data['phase'] = self.normalize_data(phase_data['phase'], stats['phase'])
+        return rlds
+        
+
+    def sigmoid_progress(self, length):
+        x = np.linspace(-6, 6, length)
+        return 1 / (1 + np.exp(-x))
+        
+    def create_sample_indices(self, rlds_dataset, sequence_length=16):
+        indices = list()
+        for episode in rlds_dataset.keys():
+            for phase in rlds_dataset[episode].keys():
+                episode_length = len(rlds_dataset[episode][phase]['pos_follower'])
+                range_idx = episode_length - (sequence_length + 2)
+                for idx in range(range_idx):
+                    buffer_start_idx = idx
+                    buffer_end_idx = idx + sequence_length
+                    indices.append([int(episode), int(phase), buffer_start_idx, buffer_end_idx])
+                    assert buffer_end_idx - buffer_start_idx == sequence_length
+        indices = np.array(indices)    
+        return indices
 
 
-def flatten_2d_lists(list_of_lists):
-    flattened_list = []
-    for sublist in list_of_lists:
-        for item in sublist:
-            flattened_list.append(item)
-    return flattened_list
+    def flatten_2d_lists(self, list_of_lists):
+        flattened_list = []
+        for sublist in list_of_lists:
+            for item in sublist:
+                flattened_list.append(item)
+        return flattened_list
 
 
-def get_data_stats(data: list):
-    data = np.array(flatten_2d_lists(data))
-    stats = {
-       'min': np.min(data, axis=0),
-       'max': np.max(data, axis=0)
-    }
-    return stats
+    def get_data_stats(self, data: list):
+        data = np.array(self.flatten_2d_lists(data))
+        stats = {
+        'min': np.min(data, axis=0),
+        'max': np.max(data, axis=0)
+        }
+        return stats
 
 
-def normalize_data(data, stats):
-    # nomalize to [0,1]
-    ndata = (data - stats['min']) / (stats['max'] - stats['min'])
-    # normalize to [-1, 1]
-    ndata = ndata * 2 - 1
-    return ndata
+    def normalize_data(self, data, stats):
+        # nomalize to [0,1]
+        ndata = (data - stats['min']) / (stats['max'] - stats['min'])
+        # normalize to [-1, 1]
+        ndata = ndata * 2 - 1
+        return ndata
 
-def unnormalize_data(ndata, stats):
-    ndata = (ndata + 1) / 2
-    data = ndata * (stats['max'] - stats['min']) + stats['min']
-    return data
+    def unnormalize_data(self, ndata, stats):
+        ndata = (ndata + 1) / 2
+        data = ndata * (stats['max'] - stats['min']) + stats['min']
+        return data
+    
+    def extract_robot_pos_orien(self, poses):
+        xyz = []
+        oriens = []
+        for pose in poses:
+            pose = np.array(pose)
+            xyz.append(pose[:3, 3])
+            rot = pose[:3, :3]
+            oriens.append(matrix_to_rotation_6d(rot))
+        return xyz, oriens
+    
+    
+    def compute_oriented_affordance_frame(self, transform_matrix, base_frame=np.eye(4)):
+        """
+        Compute the angle needed to rotate the x-axis of a given transformation
+        matrix so that it points towards the origin [0,0,0]. Apply the rotation to the
+        transformation matrix and return the resulting matrix.
+
+        Parameters:
+        - transform_matrix: A 4x4 numpy array representing the homogeneous transformation matrix.
+
+        Returns:
+        - The transformation matrix with the x-axis pointing towards the origin.
+        """
+
+        # if the base frame is not the origin, we need to transform the matrix to the base frame
+        if not np.array_equal(base_frame, np.eye(4)):
+            transform_matrix = np.dot(np.linalg.inv(base_frame), transform_matrix) #X_OO
+
+
+        # Extract the translation components (P_x, P_y) from the matrix
+        P_x, P_y = transform_matrix[0, 3], transform_matrix[1, 3]
+        
+        # Calculate the angle between the vector pointing from the frame's current position
+        # to the origin and the global x-axis. This uses atan2 and is adjusted by 180 degrees
+        # to account for the direction towards the origin.
+        angle_to_origin = np.degrees(np.arctan2(-P_y, -P_x))
+        
+        # Calculate the initial orientation of the frame's x-axis relative to the global x-axis.
+        # This is the angle of rotation about the z-axis that has already been applied to the frame.
+        # We use the elements of the rotation matrix to find this angle.
+        R11, R21 = transform_matrix[0, 0], transform_matrix[1, 0]
+        initial_orientation = np.degrees(np.arctan2(R21, R11))
+        
+        # Compute the additional rotation needed from the frame's current orientation.
+        # This is the difference between the angle to the origin and the frame's initial orientation.
+        additional_rotation = angle_to_origin - initial_orientation
+        
+        # Normalize the result to the range [-180, 180]
+        additional_rotation = (additional_rotation + 180) % 360 - 180
+
+        # Create a new transformation matrix that applies the additional rotation to the original matrix.
+        og_pose = sm.SE3(transform_matrix, check=False).norm()
+        T = og_pose * sm.SE3.Rz(np.deg2rad(additional_rotation))
+
+        # if the base frame is not the origin, we need to transform the matrix back to the base frame
+        if not np.array_equal(base_frame, np.eye(4)):
+            T = base_frame * T
+            T = sm.SE3(T, check=False).norm()
+        
+        return T
+
+
+
+    def adjust_orientation_to_z_up(self, matrix):
+        # matrix must be in the base frame of robot
+        # Extract the current Z direction
+        current_z = matrix[:3, 2]
+        target_z = np.array([0, 0, 1])
+
+        # Calculate the axis of rotation and the angle needed for correction
+        axis = np.cross(current_z, target_z)
+        angle = np.arccos(np.dot(current_z, target_z) / (np.linalg.norm(current_z) * np.linalg.norm(target_z)))
+
+        # Calculate the rotation matrix for aligning current_z to target_z
+        if np.linalg.norm(axis) != 0:  # Avoid division by zero if the axes are already aligned
+            axis = axis / np.linalg.norm(axis)
+            rotation_matrix = R.from_rotvec(axis * angle).as_matrix()
+        else:
+            rotation_matrix = np.eye(3)  # No rotation needed if axes are already aligned
+
+        # Construct the new transformation matrix
+        new_matrix = np.eye(4)
+        new_matrix[:3, :3] = np.dot(rotation_matrix, matrix[:3, :3])
+        new_matrix[:3, 3] = matrix[:3, 3]  # Preserve the original xyz position
+
+        return new_matrix
+
+
 
 
 # create an image based dataset from video
@@ -98,7 +332,7 @@ def decode_video(dataset_path:str):
 
 
 
-def detect_aruco_markers(dataset_path:str):
+def detect_aruco_markers(dataset_path:str, marker_id:int=3, file_name:str="cup_frames.json"):
     intrinsics_fpath = os.path.join(dataset_path, "calibration/hand_eye.json")
     with open(intrinsics_fpath, 'r') as f:
         meta_data = json.load(f)
@@ -155,7 +389,7 @@ def detect_aruco_markers(dataset_path:str):
             X_BC_b = np.dot(X_BE, X_EC_b)
             X_BC_f = np.dot(X_BE, X_EC_f)
 
-            if (ids_b is not None) and (3 in ids_b):
+            if (ids_b is not None) and (marker_id in ids_b):
                     ids = ids_b
                     corners = corners_b
                     frame = frame_b
@@ -163,7 +397,7 @@ def detect_aruco_markers(dataset_path:str):
                     intrinsics = intrinsics_b
                     distcoeffs = distortion_b
                     print("Pose detected for episode {} at frame {} in the back camera".format(episode, frame_id))
-            elif (ids_f is not None) and (3 in ids_f):
+            elif (ids_f is not None) and (marker_id in ids_f):
                     ids = ids_f
                     corners = corners_f
                     frame = frame_f
@@ -180,7 +414,7 @@ def detect_aruco_markers(dataset_path:str):
                 continue
 
         
-            idx = np.where(ids == 3)[0][0]
+            idx = np.where(ids == marker_id)[0][0]
             corners = np.array([corners[idx]])
             ids = np.array([ids[idx]])
     
@@ -205,20 +439,15 @@ def detect_aruco_markers(dataset_path:str):
             marker_info = {
                 'X_BO': X_BO.tolist(),
                 'frame_id': frame_id}
-            
-
-            # need to filter out bad object poses
-
-            # dist = np.dot(np.array([0,0,1]), X_BO[:3,2])
-            # if dist > 0.99:
-            #     # print(dist)
-            
+                    
             detection_list.append(marker_info)
+
+            # break
 
         cap_b.release()
         cap_f.release()
 
-        with open(os.path.join(dataset_path, "episodes", str(episode), "object_frame.json"), 'w') as f:
+        with open(os.path.join(dataset_path, "episodes", str(episode), file_name), 'w') as f:
             json.dump(detection_list, f)
 
     print("Done detecting markers")
@@ -226,224 +455,12 @@ def detect_aruco_markers(dataset_path:str):
     return
 
 
-def extract_robot_pos_orien(poses: list):
-    xyz = []
-    oriens = []
-    for episode in poses:
-        temp_p = []
-        temp_o = []
-        for pose in episode:
-            temp_p.append(pose[:3, 3])
-            rot = pose[:3, :3]
-            temp_o.append(matrix_to_rotation_6d(rot))
-        xyz.append(temp_p)
-        oriens.append(temp_o)
-    return xyz, oriens
 
 
-def extract_goal_positions(poses: list):
-    xyz = []
-    for episode in poses:
-        xyz.append(episode[:3, 3])
-    return xyz
+# fpath = "/home/krishan/work/2024/datasets/cup_saucer"
+# dataset_utils = DatasetUtils(fpath)
+# rlds = dataset_utils.create_rlds()
 
 
-def compute_oriented_affordance_frame(transform_matrix):
-    """
-    Compute the angle needed to rotate the x-axis of a given transformation
-    matrix so that it points towards the origin. Apply the rotation to the
-    transformation matrix and return the resulting matrix.
-
-    Parameters:
-    - transform_matrix: A 4x4 numpy array representing the homogeneous transformation matrix.
-
-    Returns:
-    - The transformation matrix with the x-axis pointing towards the origin.
-    """
-    # Extract the translation components (P_x, P_y) from the matrix
-    P_x, P_y = transform_matrix[0, 3], transform_matrix[1, 3]
-    
-    # Calculate the angle between the vector pointing from the frame's current position
-    # to the origin and the global x-axis. This uses atan2 and is adjusted by 180 degrees
-    # to account for the direction towards the origin.
-    angle_to_origin = np.degrees(np.arctan2(-P_y, -P_x))
-    
-    # Calculate the initial orientation of the frame's x-axis relative to the global x-axis.
-    # This is the angle of rotation about the z-axis that has already been applied to the frame.
-    # We use the elements of the rotation matrix to find this angle.
-    R11, R21 = transform_matrix[0, 0], transform_matrix[1, 0]
-    initial_orientation = np.degrees(np.arctan2(R21, R11))
-    
-    # Compute the additional rotation needed from the frame's current orientation.
-    # This is the difference between the angle to the origin and the frame's initial orientation.
-    additional_rotation = angle_to_origin - initial_orientation
-    
-    # Normalize the result to the range [-180, 180]
-    additional_rotation = (additional_rotation + 180) % 360 - 180
-
-    # Create a new transformation matrix that applies the additional rotation to the original matrix.
-    og_pose = sm.SE3(transform_matrix, check=False).norm()
-    T = og_pose * sm.SE3.Rz(np.deg2rad(additional_rotation))
-    
-    return T
-
-
-
-def adjust_orientation_to_z_up(matrix):
-    # matrix must be in the base frame of robot
-    # Extract the current Z direction
-    current_z = matrix[:3, 2]
-    target_z = np.array([0, 0, 1])
-
-    # Calculate the axis of rotation and the angle needed for correction
-    axis = np.cross(current_z, target_z)
-    angle = np.arccos(np.dot(current_z, target_z) / (np.linalg.norm(current_z) * np.linalg.norm(target_z)))
-
-    # Calculate the rotation matrix for aligning current_z to target_z
-    if np.linalg.norm(axis) != 0:  # Avoid division by zero if the axes are already aligned
-        axis = axis / np.linalg.norm(axis)
-        rotation_matrix = R.from_rotvec(axis * angle).as_matrix()
-    else:
-        rotation_matrix = np.eye(3)  # No rotation needed if axes are already aligned
-
-    # Construct the new transformation matrix
-    new_matrix = np.eye(4)
-    new_matrix[:3, :3] = np.dot(rotation_matrix, matrix[:3, :3])
-    new_matrix[:3, 3] = matrix[:3, 3]  # Preserve the original xyz position
-
-    return new_matrix
-
-def parse_dataset(dataset_path:str):
-
-    robot = rtb.models.Panda()
-    # Transformation from flange to tool centre point
-    X_FE = np.array([[0.70710678, 0.70710678, 0.0, 0.0], 
-                     [-0.70710678, 0.70710678, 0, 0], 
-                     [0.0, 0.0, 1.0, 0.2], #TODO: change this back to 0.2
-                     [0.0, 0.0, 0.0, 1.0]])
-    X_FE = sm.SE3(X_FE, check=False).norm()
-
-    gello_poses = []
-    ee_poses = []
-    tactile_data = []
-    joint_torques = []
-    ee_forces = []
-    object_poses = []
-    oriented_object_poses = []
-
-   # sort numerically the episodes based on folder names
-    episodes = sorted(os.listdir(os.path.join(dataset_path, "episodes")), key=lambda x: int(x))
-    for episode in episodes:
-        # read the state.json file which consists of a list of dictionaries
-        raw_data = json.load(open(os.path.join(dataset_path, "episodes", episode ,"state.json")))
-        raw_object_data = json.load(open(os.path.join(dataset_path, "episodes", episode ,"object_frame.json")))
-        temp_poses = []
-        temp_tactile = []
-        temp_torques = []
-        temp_forces = []
-        temp_gello = []
-        temp_object_poses = []
-        temp_orien_object_poses = []
-
-        for idx in range(len(raw_data)):
-            pose = np.array(raw_data[idx]["X_BE"])
-            temp_poses.append(pose)
-
-            # get the tactile data
-            # tactile = np.array(raw_data[idx]["tactile_sensors"])
-            # temp_tactile.append(tactile)
-
-            # get the joint torques
-            torques = np.array(raw_data[idx]["joint_torques"])
-            temp_torques.append(torques)
-
-            # get the end effector forces
-            forces = np.array(raw_data[idx]["ee_forces"])
-            temp_forces.append(forces)
-
-            # get gello q
-            gello_q = np.array(raw_data[idx]["gello_q"])
-            # convert joint positions to pose of tool centre point
-            gello_pose = robot.fkine(gello_q, "panda_link8") * X_FE
-            temp_gello.append(gello_pose.A)
-
-            # get object poses and correct its z-axis
-            object_pose = adjust_orientation_to_z_up(np.array(raw_object_data[idx]["X_BO"]))
-            temp_object_poses.append(object_pose)
-
-            # get oriented object pose
-            X_BOO = compute_oriented_affordance_frame(object_pose)
-            temp_orien_object_poses.append(X_BOO.A)
-
-        ee_poses.append(temp_poses)
-        # tactile_data.append(temp_tactile)
-        joint_torques.append(temp_torques)
-        ee_forces.append(temp_forces)
-        gello_poses.append(temp_gello)
-        object_poses.append(temp_object_poses)
-        oriented_object_poses.append(temp_orien_object_poses)
-
-    return {
-        'ee_poses': ee_poses,
-        # 'tactile_data': tactile_data,
-        'joint_torques': joint_torques,
-        'ee_forces': ee_forces,
-        'gello_poses': gello_poses,
-        'object_poses': object_poses,
-        'oriented_object_poses': oriented_object_poses
-    }
-
-
-
-def compute_transforms(dataset_path:str):
-    # read JSON file
-    # TODO We assume that the object was always in the same position for all demos
-    with open(os.path.join(dataset_path, "calibration/hand_eye.json"), 'r') as f:
-        X_EC = np.array(json.load(f)['X_EC'])
-    
-    with open(os.path.join(dataset_path, "episodes/0/marker_pose.json"), 'r') as f:
-        data = json.load(f)
-        X_CO = np.array(data['X_CO'])
-        frame_id = data['frame_id']
-
-    with open(os.path.join(dataset_path, "episodes/0/state.json"), 'r') as f:
-        data = json.load(f)[frame_id]
-        X_BE = np.array(data['X_BE'])
-
-    # compute X_BC
-    X_BC = np.dot(X_BE, X_EC)
-    # compute X_BO
-    X_BO = np.dot(X_BC, X_CO)
-    # save X_BC and X_BO
-    transforms = {
-        'X_BO': X_BO.tolist(),
-        'X_EC': X_EC.tolist(),
-    }
-
-    with open(os.path.join(dataset_path, "calibration/transforms.json"), 'w') as f:
-        json.dump(transforms, f)
-
-    return
-
-
-def extract_goal_poses(dataset_path:str):
-    goal_poses = []
-   # sort numerically the episodes based on folder names
-    episodes = sorted(os.listdir(os.path.join(dataset_path, "episodes")), key=lambda x: int(x))
-    for episode in episodes:
-        # read the state.json file which consists of a list of dictionaries
-        goal = np.array(json.load(open(os.path.join(dataset_path, "episodes", episode ,"marker_pose.json"))))
-        goal_poses.append(goal)
-    return goal_poses
-
-
-
-# fpath = "/home/krishan/work/2024/datasets/cup_rotate_dual_cam"
-# decode_video(fpath)
-# detect_aruco_markers(fpath)
-# out = extract_robot_poses(fpath)
-# out = extract_goal_poses(fpath)
-# compute_transforms(fpath)
-# out = parse_dataset(fpath)
 
   
