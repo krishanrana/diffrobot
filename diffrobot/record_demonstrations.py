@@ -67,7 +67,7 @@ class DataRecorder:
             serial_numbers=['128422271784', '123622270136'],
             resolution=(640,480),
             depth_resolution=(640,480),
-            enable_depth=False
+            enable_depth=True
         )
         self.cams.start()
         self.cams.set_exposure(exposure=5000, gain=60)

@@ -374,7 +374,8 @@ class DiffusionPolicy():
         X_BO = obs_deque[0]['X_BO']
         X_BOO = compute_oriented_affordance_frame(X_BO).A
         if self.params.action_frame == 'object_centric':
-            ee_pose = [np.dot(np.linalg.inv(X_BOO), o['X_BE']) for o in obs_deque] # X_OE
+            # ee_pose = [np.dot(np.linalg.inv(X_BOO), o['X_BE']) for o in obs_deque] # X_OO_E
+            ee_pose = [np.dot(np.linalg.inv(X_BO), o['X_BE']) for o in obs_deque] # X_OE
         elif self.params.action_frame == 'global':
             ee_pose = [o['X_BE'] for o in obs_deque]
 
@@ -508,8 +509,8 @@ class DiffusionPolicy():
             X_BOO = compute_oriented_affordance_frame(X_BO).A
 
             # X_BE = np.array([np.dot(X_BO, X_OE) for X_OE in action])
-            X_BE = [X_BOO @ X_OOE for X_OOE in action]
-            # X_BE = [X_BO for X_OE in action]
+            # X_BE = [X_BOO @ X_OOE for X_OOE in action]
+            X_BE = [X_BO @ X_OE for X_OE in action]
 
             # X_BE = action
 
