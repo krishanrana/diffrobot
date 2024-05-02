@@ -13,7 +13,7 @@ import pandas as pd
 
 
 class DatasetUtils:
-    def __init__(self, dataset_path:str):
+    def __init__(self, dataset_path=None):
         self.dataset_path = dataset_path
         self.robot = rtb.models.Panda()
         self.X_FE = np.array([[0.70710678, 0.70710678, 0.0, 0.0], 
