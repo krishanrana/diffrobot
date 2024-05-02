@@ -209,7 +209,7 @@ def create_gello() -> DynamixelRobot:
 				joint_offsets=(
 					5 * np.pi / 2,
 					2 * np.pi / 2,
-					4 * np.pi / 2,
+					0 * np.pi / 2,
 					2 * np.pi / 2,
 					2 * np.pi / 2,
 					2 * np.pi / 2,
