@@ -42,6 +42,7 @@ class DiffusionPolicy():
         self.policy_type = policy_type
         self.mode = mode
         self.precision = torch.float32
+        self.dutils = DatasetUtils()
 
         print('Using {} action frame'.format(self.params.action_frame))
 
@@ -371,10 +372,14 @@ class DiffusionPolicy():
         # X_OE = [np.dot(np.linalg.inv(o['X_BO']), o['X_BE']) for o in obs_deque]
 
         X_BO = obs_deque[0]['X_BO']
-        X_BOO = compute_oriented_affordance_frame(X_BO).A
+        X_B_OO = obs_deque[0]['X_B_OO']
+
+        gripper_state = [o['gripper_state'] for o in obs_deque]
+        phase = [o['phase'] for o in obs_deque]
+
         if self.params.action_frame == 'object_centric':
-            # ee_pose = [np.dot(np.linalg.inv(X_BOO), o['X_BE']) for o in obs_deque] # X_OO_E
-            ee_pose = [np.dot(np.linalg.inv(X_BO), o['X_BE']) for o in obs_deque] # X_OE
+            ee_pose = [np.dot(np.linalg.inv(X_B_OO), o['X_BE']) for o in obs_deque] # X_OO_E
+            # ee_pose = [np.dot(np.linalg.inv(X_BO), o['X_BE']) for o in obs_deque] # X_OE
         elif self.params.action_frame == 'global':
             ee_pose = [o['X_BE'] for o in obs_deque]
 
@@ -390,16 +395,20 @@ class DiffusionPolicy():
         # progress = [x['progress'] for x in obs_deque]
 
         # normalize data
-        nee_pos = normalize_data(ee_pos, stats=self.stats['ee_positions'])
+        nee_pos = self.dutils.normalize_data(ee_pos, stats=self.stats['pos_follower'])
+        ngripper_state = self.dutils.normalize_data(gripper_state, stats=self.stats['gripper_state']).reshape(-1, 1)
+        nphase = self.dutils.normalize_data(phase, stats=self.stats['phase']).reshape(-1, 1)
+
         # ntactile_sensor = torch.from_numpy(normalize_data(np.array(tactile_sensor), stats=self.stats['tactile_data'])).to(self.device, dtype=self.precision)
         # njoint_torques = normalize_data(joint_torques, stats=self.stats['joint_torques'])
         # nee_forces = normalize_data(ee_forces, stats=self.stats['ee_forces'])
         # nprogress = normalize_data(progress, stats=self.stats['progress']).reshape(-1, 1)
 
         # robot_state = torch.from_numpy(np.concatenate([nee_pos, ee_orien, njoint_torques, nee_forces, nprogress], axis=-1)).to(self.device, dtype=self.precision)
-        robot_state = torch.from_numpy(np.concatenate([nee_pos, ee_orien, object_orien], axis=-1)).to(self.device, dtype=self.precision)
+        robot_state = torch.from_numpy(np.concatenate([nee_pos, ee_orien, object_orien, ngripper_state, nphase], axis=-1)).to(self.device, dtype=self.precision)
         # process tactile data
         # tactile_features = self.ema_nets['tactile_encoder'](ntactile_sensor)
+
 
         # obs_cond = torch.cat([robot_state, tactile_features], dim=-1)
         obs_cond = robot_state
@@ -413,7 +422,7 @@ class DiffusionPolicy():
         image_hand = np.stack([x['image_hand'] for x in obs_deque])
         agent_poses = np.stack([x['agent_pos'] for x in obs_deque])
 
-        nagent_poses = normalize_data(agent_poses, stats=self.stats['states'])
+        nagent_poses = self.dutils.normalize_data(agent_poses, stats=self.stats['states'])
         nimage_front = image_front / 255.0
         nimage_hand = image_hand / 255.0
 
@@ -470,17 +479,18 @@ class DiffusionPolicy():
                     sample=naction
                 ).prev_sample
         
-        # unnormalize action
         naction = naction.detach().to('cpu').numpy()[0] # X_OE
 
         # extract components
         action_pos = naction[:,:3]
         action_orien = naction[:,3:9]
-        action_progress = naction[:,9]
+        action_gripper = naction[:,9]
+        action_progress = naction[:,10]
 
         # unnormalize action
-        action_pos = unnormalize_data(action_pos, stats=self.stats['ee_positions_gello'])
-        action_progress = unnormalize_data(action_progress, stats=self.stats['progress'])
+        action_pos = self.dutils.unnormalize_data(action_pos, stats=self.stats['pos_leader'])
+        action_progress = self.dutils.unnormalize_data(action_progress, stats=self.stats['progress'])
+        action_gripper = self.dutils.unnormalize_data(action_gripper, stats=self.stats['gripper_action'])
 
         # convert orientation to rotation matrix
         action_orien = [rotation_6d_to_matrix(torch.FloatTensor(x)) for x in action_orien]
@@ -505,11 +515,12 @@ class DiffusionPolicy():
             # Convert each one to a [x,y,z] point in robot frame
 
             X_BO = obs_deque[0]['X_BO']
-            X_BOO = compute_oriented_affordance_frame(X_BO).A
-
+            X_B_OO = obs_deque[0]['X_B_OO'].A
             # X_BE = np.array([np.dot(X_BO, X_OE) for X_OE in action])
-            # X_BE = [X_BOO @ X_OOE for X_OOE in action]
-            X_BE = [X_BO @ X_OE for X_OE in action]
+
+
+            X_BE = [X_B_OO @ X_OOE for X_OOE in action]
+            # X_BE = [X_BO @ X_OE for X_OE in action]
 
             # X_BE = action
 
@@ -517,6 +528,7 @@ class DiffusionPolicy():
             X_BE = action
 
         return {'action': X_BE, 
+                'action_gripper': action_gripper,
                 'progress': progress}
 
 
