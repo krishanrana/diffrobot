@@ -1,10 +1,10 @@
 
 
-low_dim = 15 #23
+low_dim = 17 #23
 tactile_dim = 16
 obs_dim = low_dim 
 
-action_dim = 10 # 3 for position, 1 for progress
+action_dim = 11 # 3 for position, 1 for progress
 pred_horizon = 16
 obs_horizon = 2
 action_horizon = 8
@@ -23,4 +23,4 @@ num_warmup_steps = 500
 
 action_frame = 'object_centric' # 'global' or 'object_centric'
 
-dataset_path = "/home/krishan/work/2024/datasets/cup_rotate_dual_cam"
+dataset_path = "/home/krishan/work/2024/datasets/cup_saucer"
