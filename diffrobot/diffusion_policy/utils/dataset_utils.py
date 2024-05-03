@@ -37,7 +37,7 @@ class DatasetUtils:
             with open(X_B_O1_path, "r") as f:
                 dynamic_object_data = json.load(f)
             with open(X_B_O2_path, "r") as f:
-                static_object_data = json.load(f)['X_BO']
+                static_object_data = json.load(f)
 
             # create a dataframe
             df = pd.DataFrame(data)
@@ -58,7 +58,7 @@ class DatasetUtils:
                 
                 # fix z axis of object poses
                 X_B_O1 = [self.adjust_orientation_to_z_up(np.array(pose)) for pose in X_B_O1['X_BO']]
-                X_B_O2 = self.adjust_orientation_to_z_up(np.array(static_object_data))
+                X_B_O2 = self.adjust_orientation_to_z_up(np.array(static_object_data['X_BO']))
                 # broadcast O2 to the length of O1
                 X_B_O2 = np.tile(X_B_O2, (len(X_B_O1), 1, 1))
 
@@ -80,8 +80,12 @@ class DatasetUtils:
                     X_OO_E_leader = [np.linalg.inv(x_b_oo2) @ x_be for x_b_oo2, x_be in zip(X_B_OO2, X_BE_leader)]
                     orien_object = [matrix_to_rotation_6d(pose[:3, :3]) for pose in X_OO2_O2]
 
-                pos_follower, orien_follower = self.extract_robot_pos_orien(X_BE_follower)
-                pos_leader, orien_leader = self.extract_robot_pos_orien(X_BE_leader)
+                # if object centric 
+                pos_follower, orien_follower = self.extract_robot_pos_orien(X_OO_E_follower)
+                pos_leader, orien_leader = self.extract_robot_pos_orien(X_OO_E_leader)
+
+                # if global
+                # TODO
 
                 rlds[episode][str(int(phase))] = {
                     'X_BE_follower': X_BE_follower,

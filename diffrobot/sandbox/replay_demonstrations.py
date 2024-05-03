@@ -12,7 +12,7 @@ from diffrobot.diffusion_policy.utils.dataset_utils import DatasetUtils
 
 dataset_path = "/home/krishan/work/2024/datasets/cup_saucer"
 dutils = DatasetUtils(dataset_path)
-rlds = dutils.create_rlds()
+rlds, stats = dutils.create_rlds()
 env = RobotViz()
 
 # read camera calibration json
@@ -28,21 +28,22 @@ for episode in rlds:
 
     for phase in ep_data:
         phase_data = ep_data[phase]
-        len_phase = len(phase_data['ee_poses'])
+        len_phase = len(phase_data['X_BE_follower'])
 
         for idx in range(len_phase):
-            X_BE = np.array(phase_data['ee_poses'][idx])
-            X_BO = np.array(phase_data['dynamic_object_poses'][idx])
-            X_BOO = np.array(phase_data['oriented_dynamic_object_poses'][idx])
+            X_BE = np.array(phase_data['X_BE_follower'][idx])
+            X_BE_leader = np.array(phase_data['X_BE_leader'][idx])
+            X_B_O1 = np.array(phase_data['X_B_O1'][idx])
+            X_B_OO1 = np.array(phase_data['X_B_OO1'][idx])
 
-            X_BO_saucer = np.array(phase_data['static_object_pose'])
-            X_BOO_saucer = np.array(phase_data['oriented_static_object_pose'])
+            X_B_O2 = np.array(phase_data['X_B_O2'][idx])
+            X_B_OO2 = np.array(phase_data['X_B_OO2'][idx])
 
             print('Progress: ', phase_data['progress'][idx]*100, '%')
 
-            env.object_pose.T = sm.SE3(X_BO, check=False).norm()
-            env.policy_pose.T = sm.SE3(X_BO_saucer, check=False).norm()
-            env.cup_handle.T = sm.SE3(X_BOO_saucer, check=False).norm()
+            env.object_pose.T = sm.SE3(X_B_O1, check=False).norm()
+            env.policy_pose.T = sm.SE3(X_BE_leader, check=False).norm()
+            env.cup_handle.T = sm.SE3(X_BE, check=False).norm()
             env.step(phase_data['robot_q'][idx])
             time.sleep(0.1)
     
