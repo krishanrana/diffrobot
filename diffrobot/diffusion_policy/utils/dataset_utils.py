@@ -30,14 +30,14 @@ class DatasetUtils:
         for episode in episodes:
             episode_path = os.path.join(self.dataset_path, "episodes", episode, "state.json")
             X_B_O1_path = os.path.join(self.dataset_path, "episodes", episode, "cup_frames.json")
-            X_B_O2_path = os.path.join(self.dataset_path, "episodes", episode, "saucer_frames.json")
+            # X_B_O2_path = os.path.join(self.dataset_path, "episodes", episode, "saucer_frames.json")
 
             with open(episode_path, "r") as f:
                 data = json.load(f)
             with open(X_B_O1_path, "r") as f:
                 dynamic_object_data = json.load(f)
-            with open(X_B_O2_path, "r") as f:
-                static_object_data = json.load(f)
+            # with open(X_B_O2_path, "r") as f:
+            #     static_object_data = json.load(f)
 
             # create a dataframe
             df = pd.DataFrame(data)
@@ -66,29 +66,29 @@ class DatasetUtils:
                 # transform to affordance centric
                 X_B_O1 = [self.transform_to_affordance_centric(pose, self.affordance_transforms['cup']) for pose in X_B_O1]
 
-                X_B_O2 = self.adjust_orientation_to_z_up(np.array(static_object_data['X_BO']))
-                X_B_O2 = self.transform_to_affordance_centric(X_B_O2, self.affordance_transforms['saucer'])
+                # X_B_O2 = self.adjust_orientation_to_z_up(np.array(static_object_data['X_BO']))
+                # X_B_O2 = self.transform_to_affordance_centric(X_B_O2, self.affordance_transforms['saucer'])
 
                 # broadcast O2 to the length of O1
-                X_B_O2 = np.tile(X_B_O2, (len(X_B_O1), 1, 1))
+                # X_B_O2 = np.tile(X_B_O2, (len(X_B_O1), 1, 1))
 
                 # compute oriented object poses
                 X_B_OO1 = [self.compute_oriented_affordance_frame(pose).A for pose in X_B_O1]
-                X_B_OO2 = [self.compute_oriented_affordance_frame(pose, base_frame=X_B_OO1[0]).A for pose in X_B_O2]
+                # X_B_OO2 = [self.compute_oriented_affordance_frame(pose, base_frame=X_B_OO1[0]).A for pose in X_B_O2]
 
                 progress = self.linear_progress(len(phase_data))
 
                 X_OO1_O1 = [np.linalg.inv(x_b_oo1) @ x_bo1 for x_b_oo1, x_bo1 in zip(X_B_OO1, X_B_O1)]
-                X_OO2_O2 = [np.linalg.inv(x_b_oo2) @ x_bo2 for x_b_oo2, x_bo2 in zip(X_B_OO2, X_B_O2)]
+                # X_OO2_O2 = [np.linalg.inv(x_b_oo2) @ x_bo2 for x_b_oo2, x_bo2 in zip(X_B_OO2, X_B_O2)]
 
                 if phase == 0:     
                     X_OO_E_follower = [np.linalg.inv(x_b_oo1) @ x_be for x_b_oo1, x_be in zip(X_B_OO1, X_BE_follower)]
                     X_OO_E_leader = [np.linalg.inv(x_b_oo1) @ x_be for x_b_oo1, x_be in zip(X_B_OO1, X_BE_leader)]
                     orien_object = [matrix_to_rotation_6d(pose[:3, :3]) for pose in X_OO1_O1]
-                elif phase == 1:
-                    X_OO_E_follower = [np.linalg.inv(x_b_oo2) @ x_be for x_b_oo2, x_be in zip(X_B_OO2, X_BE_follower)]
-                    X_OO_E_leader = [np.linalg.inv(x_b_oo2) @ x_be for x_b_oo2, x_be in zip(X_B_OO2, X_BE_leader)]
-                    orien_object = [matrix_to_rotation_6d(pose[:3, :3]) for pose in X_OO2_O2]
+                # elif phase == 1:
+                #     X_OO_E_follower = [np.linalg.inv(x_b_oo2) @ x_be for x_b_oo2, x_be in zip(X_B_OO2, X_BE_follower)]
+                #     X_OO_E_leader = [np.linalg.inv(x_b_oo2) @ x_be for x_b_oo2, x_be in zip(X_B_OO2, X_BE_leader)]
+                #     orien_object = [matrix_to_rotation_6d(pose[:3, :3]) for pose in X_OO2_O2]
 
                 # if object centric 
                 pos_follower, orien_follower = self.extract_robot_pos_orien(X_OO_E_follower)
@@ -104,9 +104,9 @@ class DatasetUtils:
                     'joint_torques': phase_data['joint_torques'].tolist(),
                     'ee_forces': phase_data['ee_forces'].tolist(),
                     'X_B_O1': X_B_O1,
-                    'X_B_O2': X_B_O2,
+                    # 'X_B_O2': X_B_O2,
                     'X_B_OO1': X_B_OO1,
-                    'X_B_OO2': X_B_OO2,
+                    # 'X_B_OO2': X_B_OO2,
                     'progress': progress,
                     'X_OO_E_follower': X_OO_E_follower,
                     'X_OO_E_leader': X_OO_E_leader,
@@ -351,7 +351,7 @@ def decode_video(dataset_path:str):
 
 
 def detect_aruco_markers(dataset_path:str, marker_id:int=3, file_name:str="cup_frames.json", dynamic_object:bool=True):
-    intrinsics_fpath = os.path.join(dataset_path, "calibration/hand_eye.json")
+    intrinsics_fpath = os.path.join(dataset_path, "transforms/hand_eye.json")
     with open(intrinsics_fpath, 'r') as f:
         meta_data = json.load(f)
         intrinsics_b = np.array(meta_data['back']['intrinsics'])
@@ -484,7 +484,7 @@ def detect_aruco_markers(dataset_path:str, marker_id:int=3, file_name:str="cup_f
 
 
 
-fpath = "/home/krishan/work/2024/datasets/cup_saucer_affordance_centric"
+# fpath = "/home/krishan/work/2024/datasets/cup_rotate_final"
 # dataset_utils = DatasetUtils(fpath)
 # detect_aruco_markers(fpath, marker_id=3, file_name="cup_frames.json", dynamic_object=True)
 # detect_aruco_markers(fpath, marker_id=8, file_name="saucer_frames.json", dynamic_object=False)

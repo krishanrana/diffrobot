@@ -10,13 +10,13 @@ from scipy.spatial.transform import Rotation as R
 from diffrobot.diffusion_policy.utils.dataset_utils import DatasetUtils
 
 
-dataset_path = "/home/krishan/work/2024/datasets/cup_saucer"
+dataset_path = "/home/krishan/work/2024/datasets/cup_rotate_final"
 dutils = DatasetUtils(dataset_path)
 rlds, stats = dutils.create_rlds()
 env = RobotViz()
 
 # read camera calibration json
-camera_calibration_path = os.path.join(dataset_path, "calibration", "hand_eye.json")
+camera_calibration_path = os.path.join(dataset_path, "transforms", "hand_eye.json")
 with open(camera_calibration_path, "r") as f:
     data = json.load(f)
     X_EC_b = np.array(data["X_EC_b"])
@@ -36,14 +36,14 @@ for episode in rlds:
             X_B_O1 = np.array(phase_data['X_B_O1'][idx])
             X_B_OO1 = np.array(phase_data['X_B_OO1'][idx])
 
-            X_B_O2 = np.array(phase_data['X_B_O2'][idx])
-            X_B_OO2 = np.array(phase_data['X_B_OO2'][idx])
+            # X_B_O2 = np.array(phase_data['X_B_O2'][idx])
+            # X_B_OO2 = np.array(phase_data['X_B_OO2'][idx])
 
             print('Progress: ', phase_data['progress'][idx]*100, '%')
 
             env.object_pose.T = sm.SE3(X_B_O1, check=False).norm()
             env.policy_pose.T = sm.SE3(X_BE_leader, check=False).norm()
-            env.cup_handle.T = sm.SE3(X_BE, check=False).norm()
+            # env.cup_handle.T = sm.SE3(X_B_O2, check=False).norm()
             env.step(phase_data['robot_q'][idx])
             time.sleep(0.1)
     

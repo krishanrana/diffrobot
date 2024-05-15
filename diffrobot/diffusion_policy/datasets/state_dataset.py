@@ -63,7 +63,8 @@ class DiffusionStateDataset(torch.utils.data.Dataset):
         gripper_state = self.all_data[episode][phase]['gripper_state'][start_idx:end_idx].reshape(-1, 1)
         ep_phase = self.all_data[episode][phase]['phase'][start_idx:end_idx].reshape(-1, 1)    
 
-        robot_state = np.concatenate([pos_follower, orien_follower, orien_object, gripper_state, ep_phase], axis=-1)
+        # robot_state = np.concatenate([pos_follower, orien_follower, orien_object, gripper_state, ep_phase], axis=-1)
+        robot_state = np.concatenate([pos_follower, orien_follower, gripper_state], axis=-1)
 
         # action data
         pos_leader = self.all_data[episode][phase]['pos_leader'][start_idx:end_idx]
