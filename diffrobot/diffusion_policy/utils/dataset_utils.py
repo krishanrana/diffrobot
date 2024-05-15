@@ -17,11 +17,11 @@ class DatasetUtils:
         self.dataset_path = dataset_path
         self.robot = rtb.models.Panda()
         self.X_FE = np.array([[0.70710678, 0.70710678, 0.0, 0.0], 
-                     [-0.70710678, 0.70710678, 0, 0], 
-                     [0.0, 0.0, 1.0, 0.2], 
-                     [0.0, 0.0, 0.0, 1.0]])
-        self.X_FE = sm.SE3(self.X_FE, check=False).norm()    
-
+                            [-0.70710678, 0.70710678, 0, 0], 
+                            [0.0, 0.0, 1.0, 0.2], 
+                            [0.0, 0.0, 0.0, 1.0]])
+        self.X_FE = sm.SE3(self.X_FE, check=False).norm()
+        self.affordance_transforms = json.load(open(os.path.join(self.dataset_path, "transforms", "to_afford.json"), "r"))  
 
     def create_rlds(self):
         rlds = {}
@@ -42,6 +42,11 @@ class DatasetUtils:
             # create a dataframe
             df = pd.DataFrame(data)
             df['idx'] = range(len(df))
+
+
+            # sanity check that the episode has both phases
+            # print(episode, 1 in df['phase'].unique())
+
             df_dobject = pd.DataFrame(dynamic_object_data)
             
             # get the number of phases
@@ -58,7 +63,12 @@ class DatasetUtils:
                 
                 # fix z axis of object poses
                 X_B_O1 = [self.adjust_orientation_to_z_up(np.array(pose)) for pose in X_B_O1['X_BO']]
+                # transform to affordance centric
+                X_B_O1 = [self.transform_to_affordance_centric(pose, self.affordance_transforms['cup']) for pose in X_B_O1]
+
                 X_B_O2 = self.adjust_orientation_to_z_up(np.array(static_object_data['X_BO']))
+                X_B_O2 = self.transform_to_affordance_centric(X_B_O2, self.affordance_transforms['saucer'])
+
                 # broadcast O2 to the length of O1
                 X_B_O2 = np.tile(X_B_O2, (len(X_B_O1), 1, 1))
 
@@ -66,7 +76,7 @@ class DatasetUtils:
                 X_B_OO1 = [self.compute_oriented_affordance_frame(pose).A for pose in X_B_O1]
                 X_B_OO2 = [self.compute_oriented_affordance_frame(pose, base_frame=X_B_OO1[0]).A for pose in X_B_O2]
 
-                progress = self.sigmoid_progress(len(phase_data))
+                progress = self.linear_progress(len(phase_data))
 
                 X_OO1_O1 = [np.linalg.inv(x_b_oo1) @ x_bo1 for x_b_oo1, x_bo1 in zip(X_B_OO1, X_B_O1)]
                 X_OO2_O2 = [np.linalg.inv(x_b_oo2) @ x_bo2 for x_b_oo2, x_bo2 in zip(X_B_OO2, X_B_O2)]
@@ -83,9 +93,6 @@ class DatasetUtils:
                 # if object centric 
                 pos_follower, orien_follower = self.extract_robot_pos_orien(X_OO_E_follower)
                 pos_leader, orien_leader = self.extract_robot_pos_orien(X_OO_E_leader)
-
-                # if global
-                # TODO
 
                 rlds[episode][str(int(phase))] = {
                     'X_BE_follower': X_BE_follower,
@@ -172,6 +179,9 @@ class DatasetUtils:
     def sigmoid_progress(self, length):
         x = np.linspace(-6, 6, length)
         return 1 / (1 + np.exp(-x))
+    
+    def linear_progress(self, length):
+        return np.linspace(0, 1, length)
         
     def create_sample_indices(self, rlds_dataset, sequence_length=16):
         indices = list()
@@ -303,6 +313,10 @@ class DatasetUtils:
         new_matrix[:3, 3] = matrix[:3, 3]  # Preserve the original xyz position
 
         return new_matrix
+    
+    def transform_to_affordance_centric(self, pose, transform_matrix):
+        return pose @ transform_matrix
+
 
 
 
@@ -336,7 +350,7 @@ def decode_video(dataset_path:str):
 
 
 
-def detect_aruco_markers(dataset_path:str, marker_id:int=3, file_name:str="cup_frames.json"):
+def detect_aruco_markers(dataset_path:str, marker_id:int=3, file_name:str="cup_frames.json", dynamic_object:bool=True):
     intrinsics_fpath = os.path.join(dataset_path, "calibration/hand_eye.json")
     with open(intrinsics_fpath, 'r') as f:
         meta_data = json.load(f)
@@ -425,8 +439,9 @@ def detect_aruco_markers(dataset_path:str, marker_id:int=3, file_name:str="cup_f
             frame = cv2.aruco.drawDetectedMarkers(frame, corners, ids)
 
             rvecs, tvecs, _ = cv2.aruco.estimatePoseSingleMarkers(corners, 0.025, intrinsics, distcoeffs)
+            # tvecs[:, 0, 1] -= 0.094
             for i in range(len(rvecs)):
-                frame = cv2.drawFrameAxes(frame, intrinsics, distcoeffs, rvecs[i], tvecs[i], 0.1)
+                frame = cv2.drawFrameAxes(frame, intrinsics, distcoeffs, rvecs[i], tvecs[i], 0.05)
 
             #show frame
             cv2.imshow("frame", frame)
@@ -446,13 +461,21 @@ def detect_aruco_markers(dataset_path:str, marker_id:int=3, file_name:str="cup_f
                     
             detection_list.append(marker_info)
 
-            # break
+            if not dynamic_object:
+                break
 
         cap_b.release()
         cap_f.release()
 
         with open(os.path.join(dataset_path, "episodes", str(episode), file_name), 'w') as f:
             json.dump(detection_list, f)
+
+        if not dynamic_object:
+            with open(os.path.join(dataset_path, "episodes", str(episode), file_name), 'w') as f:
+                json.dump(marker_info, f)
+
+        
+
 
     print("Done detecting markers")
 
@@ -461,8 +484,10 @@ def detect_aruco_markers(dataset_path:str, marker_id:int=3, file_name:str="cup_f
 
 
 
-# fpath = "/home/krishan/work/2024/datasets/cup_saucer"
+fpath = "/home/krishan/work/2024/datasets/cup_saucer_affordance_centric"
 # dataset_utils = DatasetUtils(fpath)
+# detect_aruco_markers(fpath, marker_id=3, file_name="cup_frames.json", dynamic_object=True)
+# detect_aruco_markers(fpath, marker_id=8, file_name="saucer_frames.json", dynamic_object=False)
 # rlds = dataset_utils.create_rlds()
 
 
