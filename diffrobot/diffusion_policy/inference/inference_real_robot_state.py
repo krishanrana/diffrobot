@@ -261,23 +261,26 @@ class RobotInferenceController:
                     trans, orien = matrix_to_pos_orn(self.action[i])
                     motion.set_target(to_affine(trans, orien))
 
-                    # gripper action
-                    if self.action_gripper[i] > 0.5:
+                    print('Gripper Action: ', self.action_gripper[i])
+
+                    #WIP
+             
+                    if self.action_gripper[i] > 0.1:
                         self.gripper.close()
                         self.gripper_state = 1.0
-                        print('Closing gripper')
+                        if self.phase == 0:
+                            self.phase = 1  
+                            print('Closing gripper')
+                            time.sleep(0.5)
                     else:
                         self.gripper.open()
                         self.gripper_state = 0.0
 
+
+
                     # robot ee height
                     
-                    X_BE = self.obs_deque[0]['X_BE']
-                    z_height = X_BE[2,3]
-                    print('EE Height: ', z_height)
-                    if (self.phase == 0) and self.gripper_state == 1.0 and z_height>0.5:
-                        self.phase = 1
-                        print('Switching to phase 1')
+                
 
 
                     robot_q = self.panda.get_joint_positions()
@@ -324,7 +327,7 @@ class RobotInferenceController:
 
 
 # Example usage
-controller = RobotInferenceController(saved_run_name='comfy-frost-74_state',
+controller = RobotInferenceController(saved_run_name='royal-cloud-77_state',
                                       robot_ip='172.16.0.2', 
                                       sensor_ip='131.181.33.191', 
                                       sensor_port=5000)

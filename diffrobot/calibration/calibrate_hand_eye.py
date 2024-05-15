@@ -179,9 +179,9 @@ if __name__ == "__main__":
     # Camera
     sh = SharedMemoryManager()
     sh.start()
-    cam = SingleRealsense(sh, "128422271784", resolution=(640, 480))
+    cam = SingleRealsense(sh, "123622270136", resolution=(640, 480))
     cam.start()
-    marker_detector = ArucoDetector(cam, 0.05, aruco.DICT_4X4_50, 9)
+    marker_detector = ArucoDetector(cam, 0.05, aruco.DICT_4X4_50, 6)
     # marker_detector = ArucoDetector(cam, 0.1, aruco.DICT_6X6_50, 0)
 
     # Robot

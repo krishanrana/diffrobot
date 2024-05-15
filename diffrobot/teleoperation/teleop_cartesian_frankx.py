@@ -152,8 +152,8 @@ class Teleop:
 			target_pose = self.robot_visualiser.robot.fkine(np.array(gello_q[:7]), "panda_link8") * self.robot_visualiser.X_FE
 			target_pose = target_pose.A
 
-			# self.robot_visualiser.ee_pose.T = sm.SE3((np.array(robot_state.O_T_EE)).reshape(4,4).T, check=False).norm()	
-			# self.robot_visualiser.policy_pose.T = target_pose 
+			self.robot_visualiser.ee_pose.T = sm.SE3((np.array(robot_state.O_T_EE)).reshape(4,4).T, check=False).norm()	
+			self.robot_visualiser.policy_pose.T = target_pose 
 			# self.robot_visualiser.step(robot_state.q, gello_q[:7])
 			
 			self.trans, self.orien = matrix_to_pos_orn(target_pose)
