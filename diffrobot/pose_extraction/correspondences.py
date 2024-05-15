@@ -138,7 +138,7 @@ def draw_correspondences(points1: List[Tuple[float, float]], points2: List[Tuple
         cmap = ListedColormap(["red", "yellow", "blue", "lime", "magenta", "indigo", "orange", "cyan", "darkgreen",
                                "maroon", "black", "white", "chocolate", "gray", "blueviolet"])
     colors = np.array([cmap(x) for x in range(num_points)])
-    radius1, radius2 = 8, 1
+    radius1, radius2 = 1, 0.5
     for point1, point2, color in zip(points1, points2, colors):
         y1, x1 = point1
         circ1_1 = plt.Circle((x1, y1), radius1, facecolor=color, edgecolor='white', alpha=0.5)
