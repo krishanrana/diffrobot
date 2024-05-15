@@ -23,4 +23,4 @@ num_warmup_steps = 500
 
 action_frame = 'object_centric' # 'global' or 'object_centric'
 
-dataset_path = "/home/krishan/work/2024/datasets/cup_saucer"
+dataset_path = "/home/krishan/work/2024/datasets/cup_saucer_affordance_centric"
