@@ -42,7 +42,7 @@ class DiffusionPolicy():
         self.policy_type = policy_type
         self.mode = mode
         self.precision = torch.float32
-        self.dutils = DatasetUtils()
+        self.dutils = DatasetUtils(self.params.dataset_path)
 
         print('Using {} action frame'.format(self.params.action_frame))
 
