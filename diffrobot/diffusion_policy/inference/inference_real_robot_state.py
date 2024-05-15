@@ -85,7 +85,9 @@ class RobotInferenceController:
         self.panda = Robot(self.robot_ip)
         self.gripper = self.panda.gripper
 
-        self.gripper.open() 
+        self.gripper.open()
+        # self.gripper.close()
+        self.gripper_state = 0.0
 
         # self.panda.set_dynamic_rel(1.0, accel_rel=0.2, jerk_rel=0.05)
         # self.panda.set_dynamic_rel(0.4, accel_rel=0.005, jerk_rel=0.05)
@@ -104,9 +106,11 @@ class RobotInferenceController:
         # self.panda.move_to_joints(np.deg2rad([0, 0, 0, -90, 0, 90, 45]))
         # self.panda.move_to_joints([-1.5665102330276086, 0.06832033950119581, 0.07771335946889425, -2.02817877543619, -0.005529185095817712, 2.2603790660269496, 0.7730436232405306])
 
+
+        self.load_transforms()
+
         self.search_for_objects()
         
-        self.load_transforms()
 
     def search_for_objects(self):
         # this function will sweep the arm across its workspace to search for the intial pose of all objects
@@ -125,15 +129,20 @@ class RobotInferenceController:
             X_C_O1 = self.marker_detector_front.estimate_pose()
             X_C_O2 = self.marker_detector_front_saucer.estimate_pose()
 
+            s = self.panda.get_state()
+            X_BE = np.array(s.O_T_EE).reshape(4,4).T
+            X_BC = X_BE @ self.X_EC_f
+            
+
             if X_C_O1 is not None:
                 found_O1 = True
-                self.X_C_O1 = X_C_O1
+                self.X_B_O1 = X_BC @ X_C_O1
                 saved_angle = sweep_angle
                 print('Found the cup!')
 
             if X_C_O2 is not None:
                 found_O2 = True
-                self.X_C_O2 = X_C_O2
+                self.X_B_O2 = X_BC @ X_C_O2
                 print('Found the saucer!')
 
             if found_O1 and found_O2:
@@ -169,21 +178,27 @@ class RobotInferenceController:
         s = self.panda.get_state()
         X_BE = np.array(s.O_T_EE).reshape(4,4).T
         # X_BF = read_X_BF(s)
-        if self.phase == 0:
-            X_CO = self.get_marker()
-        elif self.phase == 1:
-            X_CO = self.X_C_O2
-            self.X_EC = self.X_EC_f
+        # if self.phase == 0:
+        X_CO = self.get_marker()
+    
 
         if X_CO is not None:
             # X_BC = X_BF @ self.X_FC
-            X_BC = X_BE @ self.X_EC
-            X_BO = X_BC @ X_CO
+
+            if self.phase == 0:
+                X_BC = X_BE @ self.X_EC
+                X_BO = X_BC @ X_CO
+            elif self.phase == 1:
+                X_BO = self.X_B_O2
 
             # dist = np.dot(np.array([0,0,1]), X_BO[:3,2])
             # if dist > 0.99: # filter out bad object poses
             #     self.X_BO = X_BO
             self.X_BO = self.dutils.adjust_orientation_to_z_up(X_BO)
+
+            #TODO WIP delete this
+            self.saved_X_B_OO1 = self.dutils.compute_oriented_affordance_frame(self.X_B_O1)
+
             if self.phase == 0:
                 self.X_B_OO = self.dutils.compute_oriented_affordance_frame(self.X_BO)
                 self.saved_X_B_OO1 = self.X_B_OO
@@ -249,8 +264,21 @@ class RobotInferenceController:
                     # gripper action
                     if self.action_gripper[i] > 0.5:
                         self.gripper.close()
+                        self.gripper_state = 1.0
+                        print('Closing gripper')
                     else:
                         self.gripper.open()
+                        self.gripper_state = 0.0
+
+                    # robot ee height
+                    
+                    X_BE = self.obs_deque[0]['X_BE']
+                    z_height = X_BE[2,3]
+                    print('EE Height: ', z_height)
+                    if (self.phase == 0) and self.gripper_state == 1.0 and z_height>0.5:
+                        self.phase = 1
+                        print('Switching to phase 1')
+
 
                     robot_q = self.panda.get_joint_positions()
                     self.robot_visualiser.ee_pose.T = self.panda.get_tcp_pose()
@@ -266,7 +294,7 @@ class RobotInferenceController:
                     # if i > 3:
                     #     break
 
-                    pdb.set_trace()
+                    # pdb.set_trace()
                     
 
                     # waypoints.append(to_affine(trans, orien))
@@ -296,7 +324,7 @@ class RobotInferenceController:
 
 
 # Example usage
-controller = RobotInferenceController(saved_run_name='drawn-capybara-73_state',
+controller = RobotInferenceController(saved_run_name='comfy-frost-74_state',
                                       robot_ip='172.16.0.2', 
                                       sensor_ip='131.181.33.191', 
                                       sensor_port=5000)
