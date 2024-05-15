@@ -11,6 +11,7 @@ import cv2
 from diffrobot.calibration.aruco_detector import ArucoDetector, aruco
 from reactivex import operators as ops
 from reactivex.subject import Subject
+import pyrealsense2 as rs
 
 
 @dataclass
@@ -67,7 +68,7 @@ class DataRecorder:
             serial_numbers=['128422271784', '123622270136'],
             resolution=(640,480),
             depth_resolution=(640,480),
-            enable_depth=True
+            enable_depth=False,
         )
         self.cams.start()
         self.cams.set_exposure(exposure=5000, gain=60)
@@ -75,6 +76,12 @@ class DataRecorder:
         # self.sensor_socket = SensorSocket("131.181.33.191", 5000) #tactile sensor
         # self.marker_detector = ArucoDetector(self.cams.cameras['f1230727'], 0.025, aruco.DICT_4X4_50, 4, visualize=True)
         self.setup_streams()
+
+        self.static_camera_pipeline = rs.pipeline()
+        config = rs.config()
+        config.enable_device('035122250692')
+        config.enable_stream(rs.stream.color, 640, 480, rs.format.bgr8, 30)
+        self.static_camera_pipeline.start(config)
 
     def grasp(self, x):
         print(x)
@@ -92,10 +99,16 @@ class DataRecorder:
     def toggle_record(self, discard = False):
         self.record_data = not self.record_data
         if self.record_data:
+
+            # save a photo of the current state
+            static_rgb = self.static_camera_pipeline.wait_for_frames().get_color_frame()
+            color_image = np.asanyarray(static_rgb.get_data())
+
             self.demo_state_text = "Recording..."
             self.states = []
             path = Path(f"data/{self.params.name}/{self.idx}/video")
             path.mkdir(parents=True, exist_ok=True)
+            cv2.imwrite(f"data/{self.params.name}/{self.idx}/static_rgb.jpg", color_image)
             self.cams.start_recording(str(path))
             self.disposable = self.record_stream.subscribe(lambda x: self.record_state(x))
             print("Recording demonstration {}".format(self.idx))
@@ -153,6 +166,7 @@ class DataRecorder:
         self.t.relinquish()
         self.t.home_robot()
         cv2.destroyAllWindows()
+        self.static_camera_pipeline.stop()
 
     def run(self):
         try:

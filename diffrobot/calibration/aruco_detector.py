@@ -62,7 +62,7 @@ class ArucoDetector:
         rgb = self.cam.get()["color"]
         detected_markers = self.detect_markers(rgb)
         if len(detected_markers) == 0:
-            print("no marker detected")
+            # print("no marker detected")
             # code to show 'No Ids' when no markers are found
 
             cv2.putText(rgb, "No Ids", (0, 64), FONT, 1, (0, 255, 0), 2, cv2.LINE_AA)
