@@ -205,10 +205,10 @@ class RobotInferenceController:
             self.X_BO = self.dutils.adjust_orientation_to_z_up(X_BO)
 
             # adjust frame to affordance centric region
-            if self.phase == 0:
-                self.X_BO = self.dutils.transform_to_affordance_centric(self.X_BO, self.dutils.affordance_transforms['cup'])
-            elif self.phase == 1:
-                self.X_BO = self.dutils.transform_to_affordance_centric(self.X_BO, self.dutils.affordance_transforms['saucer'])
+            #if self.phase == 0:
+            #    self.X_BO = self.dutils.transform_to_affordance_centric(self.X_BO, self.dutils.affordance_transforms['cup'])
+            #elif self.phase == 1:
+            #    self.X_BO = self.dutils.transform_to_affordance_centric(self.X_BO, self.dutils.affordance_transforms['saucer'])
 
             #TODO WIP delete this
             # self.saved_X_B_OO1 = self.dutils.compute_oriented_affordance_frame(self.X_B_O1)
@@ -330,7 +330,7 @@ class RobotInferenceController:
 
 
 # Example usage
-controller = RobotInferenceController(saved_run_name='clean-capybara-81_state',
+controller = RobotInferenceController(saved_run_name='unique-music-82_state',
                                       robot_ip='172.16.0.2', 
                                       sensor_ip='131.181.33.191', 
                                       sensor_port=5000)

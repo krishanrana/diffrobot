@@ -21,7 +21,7 @@ class DatasetUtils:
                             [0.0, 0.0, 1.0, 0.2], 
                             [0.0, 0.0, 0.0, 1.0]])
         self.X_FE = sm.SE3(self.X_FE, check=False).norm()
-        self.affordance_transforms = json.load(open(os.path.join(self.dataset_path, "transforms", "to_afford.json"), "r"))  
+        # self.affordance_transforms = json.load(open(os.path.join(self.dataset_path, "transforms", "to_afford.json"), "r"))  
 
     def create_rlds(self):
         rlds = {}
