@@ -21,7 +21,7 @@ class DatasetUtils:
                             [0.0, 0.0, 1.0, 0.2], 
                             [0.0, 0.0, 0.0, 1.0]])
         self.X_FE = sm.SE3(self.X_FE, check=False).norm()
-        self.affordance_transforms = json.load(open(os.path.join(self.dataset_path, "transforms", "to_afford.json"), "r"))  
+        # self.affordance_transforms = json.load(open(os.path.join(self.dataset_path, "transforms", "to_afford.json"), "r"))  
 
     def create_rlds(self):
         rlds = {}
@@ -64,7 +64,7 @@ class DatasetUtils:
                 # fix z axis of object poses
                 X_B_O1 = [self.adjust_orientation_to_z_up(np.array(pose)) for pose in X_B_O1['X_BO']]
                 # transform to affordance centric
-                X_B_O1 = [self.transform_to_affordance_centric(pose, self.affordance_transforms['cup']) for pose in X_B_O1]
+                # X_B_O1 = [self.transform_to_affordance_centric(pose, self.affordance_transforms['cup']) for pose in X_B_O1]
 
                 # X_B_O2 = self.adjust_orientation_to_z_up(np.array(static_object_data['X_BO']))
                 # X_B_O2 = self.transform_to_affordance_centric(X_B_O2, self.affordance_transforms['saucer'])
@@ -150,7 +150,7 @@ class DatasetUtils:
                 all_gripper_state.append(phase_data['gripper_state'])
                 all_gripper_action.append(phase_data['gripper_action'])
                 all_progress.append(phase_data['progress'])
-                all_phase.append(phase_data['phase'])
+                # all_phase.append(phase_data['phase'])
         
         stats = dict()
         stats['pos_follower'] = self.get_data_stats(all_pos_follower)
@@ -158,7 +158,7 @@ class DatasetUtils:
         stats['gripper_state'] = self.get_data_stats(all_gripper_state)
         stats['gripper_action'] = self.get_data_stats(all_gripper_action)
         stats['progress'] = self.get_data_stats(all_progress)
-        stats['phase'] = self.get_data_stats(all_phase)
+        # stats['phase'] = self.get_data_stats(all_phase)
 
         return stats
     
@@ -172,7 +172,7 @@ class DatasetUtils:
                 phase_data['gripper_state'] = self.normalize_data(phase_data['gripper_state'], stats['gripper_state'])
                 phase_data['gripper_action'] = self.normalize_data(phase_data['gripper_action'], stats['gripper_action'])
                 phase_data['progress'] = self.normalize_data(phase_data['progress'], stats['progress'])
-                phase_data['phase'] = self.normalize_data(phase_data['phase'], stats['phase'])
+                # phase_data['phase'] = self.normalize_data(phase_data['phase'], stats['phase'])
         return rlds
         
 
@@ -484,7 +484,7 @@ def detect_aruco_markers(dataset_path:str, marker_id:int=3, file_name:str="cup_f
 
 
 
-# fpath = "/home/krishan/work/2024/datasets/cup_rotate_final"
+# fpath = "/home/krishan/work/2024/datasets/cup_rotate_phase_1"
 # dataset_utils = DatasetUtils(fpath)
 # detect_aruco_markers(fpath, marker_id=3, file_name="cup_frames.json", dynamic_object=True)
 # detect_aruco_markers(fpath, marker_id=8, file_name="saucer_frames.json", dynamic_object=False)
