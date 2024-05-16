@@ -2,6 +2,7 @@ import cv2
 import cv2.aruco as aruco
 import numpy as np
 from scipy.spatial.transform import Rotation as R
+import pdb
 
 FONT = cv2.FONT_HERSHEY_SIMPLEX
 

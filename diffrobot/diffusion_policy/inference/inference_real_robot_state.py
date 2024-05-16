@@ -45,7 +45,6 @@ class RobotInferenceController:
         self.setup_cameras_and_sensors()
         self.setup_robot()
         self.phase = 0
-        self.dutils = DatasetUtils()
 
         self.obs_deque = collections.deque(maxlen=self.policy.params.obs_horizon)
         self.progress = np.zeros((self.params.action_horizon))
@@ -59,6 +58,8 @@ class RobotInferenceController:
                                       config_file=f'{self.run_dir}/config_state_pretrain',
                                       finetune=False, 
                                       saved_run_name=self.saved_run_name)
+        
+        self.dutils = self.policy.dutils
 
     def setup_cameras_and_sensors(self):
         # self.sh = SharedMemoryManager()
@@ -72,11 +73,8 @@ class RobotInferenceController:
 
         self.cams.start()
         self.cams.set_exposure(exposure=5000, gain=60)
-        self.marker_detector_front = ArucoDetector(self.cams.cameras['123622270136'], 0.025, aruco.DICT_4X4_50, 3, visualize=False)
-        self.marker_detector_back = ArucoDetector(self.cams.cameras['128422271784'], 0.025, aruco.DICT_4X4_50, 3, visualize=False)
-
-        self.marker_detector_front_saucer = ArucoDetector(self.cams.cameras['123622270136'], 0.025, aruco.DICT_4X4_50, 8, visualize=False) 
-        self.marker_detector_back_saucer = ArucoDetector(self.cams.cameras['128422271784'], 0.025, aruco.DICT_4X4_50, 8, visualize=False)
+        self.marker_detector_front = ArucoDetector(self.cams.cameras['123622270136'], 0.025, aruco.DICT_4X4_50, marker_id=None, visualize=False)
+        self.marker_detector_back = ArucoDetector(self.cams.cameras['128422271784'], 0.025, aruco.DICT_4X4_50, marker_id=None, visualize=False)
         
         # self.sensor_socket = SensorSocket(self.sensor_ip, self.sensor_port)
         time.sleep(1.0)
@@ -92,7 +90,7 @@ class RobotInferenceController:
         # self.panda.set_dynamic_rel(1.0, accel_rel=0.2, jerk_rel=0.05)
         # self.panda.set_dynamic_rel(0.4, accel_rel=0.005, jerk_rel=0.05)
 
-        self.panda.set_dynamic_rel(0.4, accel_rel=0.2, jerk_rel=0.05)
+        self.panda.set_dynamic_rel(0.6, accel_rel=0.2, jerk_rel=0.05)
         self.panda.frankx.set_collision_behavior(
 			[30.0, 30.0, 30.0, 30.0, 30.0, 30.0, 30.0],
 			[30.0, 30.0, 30.0, 30.0, 30.0, 30.0, 30.0],
@@ -113,57 +111,67 @@ class RobotInferenceController:
         
 
     def search_for_objects(self):
-        # this function will sweep the arm across its workspace to search for the intial pose of all objects
-        # these poses will be stored in the base frame of the robot
-        # Once these poses are found the robot will initiate the policy
-        
-        # create a sweep path for the impedance controller to follow
+        # This function sweeps the arm across its workspace to search for the initial pose of all objects.
+        # These poses will be stored in the base frame of the robot.
+        # Once these poses are found, the robot will initiate the policy.
 
         found_O1 = False
         found_O2 = False
         saved_angle = -90
         
-        for sweep_angle in np.linspace(-90, 90, 5):
-            self.panda.move_to_joints(np.deg2rad([sweep_angle, 0, 0, -90, 0, 90, 45]))
-
-            X_C_O1 = self.marker_detector_front.estimate_pose()
-            X_C_O2 = self.marker_detector_front_saucer.estimate_pose()
-
-            s = self.panda.get_state()
-            X_BE = np.array(s.O_T_EE).reshape(4,4).T
-            X_BC = X_BE @ self.X_EC_f
+        sweep_angles = np.linspace(-110, 90, 8)
+        for sweep_angle in sweep_angles:
+            self.panda.move_to_joints(np.deg2rad([sweep_angle, 0, 0, -110, 0, 110, 45]))
             
-
-            if X_C_O1 is not None:
-                found_O1 = True
-                self.X_B_O1 = X_BC @ X_C_O1
-                saved_angle = sweep_angle
-                print('Found the cup!')
-
-            if X_C_O2 is not None:
-                found_O2 = True
-                self.X_B_O2 = X_BC @ X_C_O2
-                print('Found the saucer!')
+            for marker_id, attr_name in [(3, 'X_B_O1'), (10, 'X_B_O2')]:
+                X_C_f = self.marker_detector_front.estimate_pose(marker_id=marker_id)
+                X_C_b = self.marker_detector_back.estimate_pose(marker_id=marker_id)
+                
+                s = self.panda.get_state()
+                X_BE = np.array(s.O_T_EE).reshape(4, 4).T
+                
+                if X_C_f is not None:
+                    X_BC = X_BE @ self.X_EC_f
+                    setattr(self, attr_name, X_BC @ X_C_f)
+                    if marker_id == 3:
+                        found_O1 = True
+                        saved_angle = sweep_angle
+                        print('Found the cup!')
+                    else:
+                        found_O2 = True
+                        print('Found the saucer!')
+                        
+                if X_C_b is not None:
+                    X_BC = X_BE @ self.X_EC_b
+                    setattr(self, attr_name, X_BC @ X_C_b)
+                    if marker_id == 3:
+                        found_O1 = True
+                        saved_angle = sweep_angle
+                        print('Found the cup!')
+                    else:
+                        found_O2 = True
+                        print('Found the saucer!')
 
             if found_O1 and found_O2:
                 break
         
-        # move and wait above the cup
+        # Move and wait above the cup
         self.panda.move_to_joints(np.deg2rad([saved_angle, 0, 0, -90, 0, 90, 45]))
+
 
 
 
     def load_transforms(self):
         self.X_BO = None
         self.X_OO_O = None
-        with open(f'../runs/{self.saved_run_name}/hand_eye.json', 'r') as f:
+        with open(f'../runs/{self.saved_run_name}/transforms/hand_eye.json', 'r') as f:
             trans = json.load(f)
             self.X_EC_b = np.array(trans['X_EC_b'])
             self.X_EC_f = np.array(trans['X_EC_f'])
 
     def get_marker(self):
-        marker_front = self.marker_detector_front.estimate_pose()
-        marker_back = self.marker_detector_back.estimate_pose()
+        marker_front = self.marker_detector_front.estimate_pose(marker_id=3)
+        marker_back = self.marker_detector_back.estimate_pose(marker_id=3)
 
         if marker_front is not None:
             self.X_EC = self.X_EC_f
@@ -196,8 +204,14 @@ class RobotInferenceController:
             #     self.X_BO = X_BO
             self.X_BO = self.dutils.adjust_orientation_to_z_up(X_BO)
 
+            # adjust frame to affordance centric region
+            if self.phase == 0:
+                self.X_BO = self.dutils.transform_to_affordance_centric(self.X_BO, self.dutils.affordance_transforms['cup'])
+            elif self.phase == 1:
+                self.X_BO = self.dutils.transform_to_affordance_centric(self.X_BO, self.dutils.affordance_transforms['saucer'])
+
             #TODO WIP delete this
-            self.saved_X_B_OO1 = self.dutils.compute_oriented_affordance_frame(self.X_B_O1)
+            # self.saved_X_B_OO1 = self.dutils.compute_oriented_affordance_frame(self.X_B_O1)
 
             if self.phase == 0:
                 self.X_B_OO = self.dutils.compute_oriented_affordance_frame(self.X_BO)
@@ -232,7 +246,7 @@ class RobotInferenceController:
             while not done:
 
                 # wait for obs_deque to have len 2
-                while len(self.obs_deque) < 2:
+                while len(self.obs_deque) < self.policy.params.obs_horizon:
                     time.sleep(0.1)
                     print("Waiting for observation")
 
@@ -253,11 +267,7 @@ class RobotInferenceController:
                 # for i in range(len(self.action)):
                 for i in range(len(self.action)):
                     print('Task Progress: ', self.progress[i])
-                    # if self.progress[i] >  0.85:
-                    #     print('I think im done with the task!')
-                    #     input('Should I continue?')
-                    #     self.progress = np.zeros((self.params.action_horizon))
-
+    
                     trans, orien = matrix_to_pos_orn(self.action[i])
                     motion.set_target(to_affine(trans, orien))
 
@@ -265,7 +275,7 @@ class RobotInferenceController:
 
                     #WIP
              
-                    if self.action_gripper[i] > 0.1:
+                    if self.action_gripper[i] > 0.14:
                         self.gripper.close()
                         self.gripper_state = 1.0
                         if self.phase == 0:
@@ -275,13 +285,6 @@ class RobotInferenceController:
                     else:
                         self.gripper.open()
                         self.gripper_state = 0.0
-
-
-
-                    # robot ee height
-                    
-                
-
 
                     robot_q = self.panda.get_joint_positions()
                     self.robot_visualiser.ee_pose.T = self.panda.get_tcp_pose()
@@ -327,7 +330,7 @@ class RobotInferenceController:
 
 
 # Example usage
-controller = RobotInferenceController(saved_run_name='royal-cloud-77_state',
+controller = RobotInferenceController(saved_run_name='clean-capybara-81_state',
                                       robot_ip='172.16.0.2', 
                                       sensor_ip='131.181.33.191', 
                                       sensor_port=5000)
