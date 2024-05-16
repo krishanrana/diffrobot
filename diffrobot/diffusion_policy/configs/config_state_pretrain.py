@@ -1,6 +1,6 @@
 
 
-low_dim = 10 #17 #23
+low_dim = 16 #17 #23
 tactile_dim = 16
 obs_dim = low_dim 
 
@@ -23,4 +23,4 @@ num_warmup_steps = 500
 
 action_frame = 'object_centric' # 'global' or 'object_centric'
 
-dataset_path = "/home/krishan/work/2024/datasets/cup_rotate_final"
+dataset_path = "/home/krishan/work/2024/datasets/cup_rotate_phase_1"
