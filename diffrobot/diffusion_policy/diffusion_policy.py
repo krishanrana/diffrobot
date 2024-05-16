@@ -42,7 +42,11 @@ class DiffusionPolicy():
         self.policy_type = policy_type
         self.mode = mode
         self.precision = torch.float32
-        self.dutils = DatasetUtils(self.params.dataset_path)
+
+        if self.mode == 'train':
+            self.dutils = DatasetUtils(self.params.dataset_path)
+        elif self.mode == 'infer':
+            self.dutils = DatasetUtils(self.params.dataset_path + saved_run_name)
 
         print('Using {} action frame'.format(self.params.action_frame))
 
@@ -405,7 +409,9 @@ class DiffusionPolicy():
         # nprogress = normalize_data(progress, stats=self.stats['progress']).reshape(-1, 1)
 
         # robot_state = torch.from_numpy(np.concatenate([nee_pos, ee_orien, njoint_torques, nee_forces, nprogress], axis=-1)).to(self.device, dtype=self.precision)
-        robot_state = torch.from_numpy(np.concatenate([nee_pos, ee_orien, object_orien, ngripper_state, nphase], axis=-1)).to(self.device, dtype=self.precision)
+        # robot_state = torch.from_numpy(np.concatenate([nee_pos, ee_orien, object_orien, ngripper_state, nphase], axis=-1)).to(self.device, dtype=self.precision)
+        robot_state = torch.from_numpy(np.concatenate([nee_pos, ee_orien, object_orien, ngripper_state], axis=-1)).to(self.device, dtype=self.precision)
+        
         # process tactile data
         # tactile_features = self.ema_nets['tactile_encoder'](ntactile_sensor)
 

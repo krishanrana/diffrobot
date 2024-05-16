@@ -22,38 +22,38 @@ vis = MultiCameraVisualizer(cams, 2, 1)
 cams.start()
 cams.set_exposure(exposure=5000, gain=60)
 
-back_intrinsics = cams.cameras['128422271784'].get_intrinsics()
-front_intrinsics = cams.cameras['123622270136'].get_intrinsics()
+# back_intrinsics = cams.cameras['128422271784'].get_intrinsics()
+# front_intrinsics = cams.cameras['123622270136'].get_intrinsics()
 
-back_distortion = cams.cameras['128422271784'].get_dist_coeffs()
-front_distortion = cams.cameras['123622270136'].get_dist_coeffs()
+# back_distortion = cams.cameras['128422271784'].get_dist_coeffs()
+# front_distortion = cams.cameras['123622270136'].get_dist_coeffs()
 
-camera_info = {
-    'back': {
-        'intrinsics': back_intrinsics.tolist(),
-        'distortion': back_distortion.tolist()
-    },
-    'front': {
-        'intrinsics': front_intrinsics.tolist(),
-        'distortion': front_distortion.tolist()
-    }
-}
+# camera_info = {
+#     'back': {
+#         'intrinsics': back_intrinsics.tolist(),
+#         'distortion': back_distortion.tolist()
+#     },
+#     'front': {
+#         'intrinsics': front_intrinsics.tolist(),
+#         'distortion': front_distortion.tolist()
+#     }
+# }
 
-# save to json
-with open('camera_info.json', 'w') as f:
-    json.dump(camera_info, f, indent=4)
+# # save to json
+# with open('camera_info.json', 'w') as f:
+#     json.dump(camera_info, f, indent=4)
 
 
 
 # pdb.set_trace()
 
 # vis.run()
-marker_detector_1 = ArucoDetector(cams.cameras['128422271784'], 0.025, aruco.DICT_4X4_50, 3, visualize=True)
-marker_detector_2 = ArucoDetector(cams.cameras['123622270136'], 0.025, aruco.DICT_4X4_50, 3, visualize=True)
+marker_detector_1 = ArucoDetector(cams.cameras['128422271784'], 0.025, aruco.DICT_4X4_50, 10, visualize=True)
+# marker_detector_2 = ArucoDetector(cams.cameras['123622270136'], 0.025, aruco.DICT_4X4_50, 3, visualize=True)
 
 while True:
     print(marker_detector_1.estimate_pose())
-    print(marker_detector_2.estimate_pose())
+    # print(marker_detector_2.estimate_pose())
 
 
 
