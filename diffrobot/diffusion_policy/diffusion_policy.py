@@ -163,6 +163,8 @@ class DiffusionPolicy():
                             "pred_horizon": self.params.pred_horizon,
                             "obs_horizon": self.params.obs_horizon,
                             "action_horizon": self.params.action_horizon,
+                            "symmetric": self.params.symmetric,
+                            "freq_divisor": self.params.freq_divisor,
                             "action_frame": self.params.action_frame,}
             
             self.train_dataset = DatasetClass(stage='train', **dataset_params, 
