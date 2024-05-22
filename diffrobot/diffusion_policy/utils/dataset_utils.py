@@ -23,78 +23,63 @@ class DatasetUtils:
         self.X_FE = sm.SE3(self.X_FE, check=False).norm()
         # self.affordance_transforms = json.load(open(os.path.join(self.dataset_path, "transforms", "to_afford.json"), "r"))  
 
-    def create_rlds(self):
+    def create_rlds(self, num_noisy_variations=5):
+        def add_noise(data, noise_level):
+            return data + np.random.normal(scale=noise_level, size=data.shape)
+
+        # Define noise levels for position and orientation
+        pos_noise_level = 0.01  # Example noise level for position
+        orien_noise_level = 0.01  # Example noise level for orientation
+
         rlds = {}
         episodes = sorted(os.listdir(os.path.join(self.dataset_path, "episodes")), key=lambda x: int(x))
+        original_num_episodes = len(episodes)
 
-        for episode in episodes:
+        for episode_index, episode in enumerate(episodes):
             episode_path = os.path.join(self.dataset_path, "episodes", episode, "state.json")
-            X_B_O1_path = os.path.join(self.dataset_path, "episodes", episode, "cup_frames.json")
-            # X_B_O2_path = os.path.join(self.dataset_path, "episodes", episode, "saucer_frames.json")
+            X_B_O1_path = os.path.join(self.dataset_path, "episodes", episode, "affordance_frames.json")
 
             with open(episode_path, "r") as f:
                 data = json.load(f)
             with open(X_B_O1_path, "r") as f:
-                dynamic_object_data = json.load(f)
-            # with open(X_B_O2_path, "r") as f:
-            #     static_object_data = json.load(f)
+                object_data = json.load(f)
 
-            # create a dataframe
             df = pd.DataFrame(data)
             df['idx'] = range(len(df))
 
+            if not isinstance(object_data, list):
+                object_data = [object_data] * len(df)
 
-            # sanity check that the episode has both phases
-            # print(episode, 1 in df['phase'].unique())
-
-            df_dobject = pd.DataFrame(dynamic_object_data)
-            
-            # get the number of phases
+            df_object = pd.DataFrame(object_data)
             phases = df['phase'].unique()
 
-            rlds[episode] = {}
+            rlds[episode_index] = {}
             for phase in phases:
                 phase_data = df[df['phase'] == phase]
+
+                # print("Processing episode {} phase {}".format(episode, phase))
 
                 X_BE_follower = phase_data['X_BE'].tolist()
                 X_BE_leader = [(self.robot.fkine(np.array(q), "panda_link8") * self.X_FE).A for q in phase_data['gello_q']]
 
-                X_B_O1 = df_dobject[df_dobject['frame_id'].isin(phase_data['idx'])]
-                
-                # fix z axis of object poses
+                X_B_O1 = df_object[df_object['frame_id'].isin(phase_data['idx'])]
+
                 X_B_O1 = [self.adjust_orientation_to_z_up(np.array(pose)) for pose in X_B_O1['X_BO']]
-                # transform to affordance centric
-                # X_B_O1 = [self.transform_to_affordance_centric(pose, self.affordance_transforms['cup']) for pose in X_B_O1]
-
-                # X_B_O2 = self.adjust_orientation_to_z_up(np.array(static_object_data['X_BO']))
-                # X_B_O2 = self.transform_to_affordance_centric(X_B_O2, self.affordance_transforms['saucer'])
-
-                # broadcast O2 to the length of O1
-                # X_B_O2 = np.tile(X_B_O2, (len(X_B_O1), 1, 1))
-
-                # compute oriented object poses
-                X_B_OO1 = [self.compute_oriented_affordance_frame(pose).A for pose in X_B_O1]
-                # X_B_OO2 = [self.compute_oriented_affordance_frame(pose, base_frame=X_B_OO1[0]).A for pose in X_B_O2]
+                base_frame = np.array(X_BE_follower[0]) if np.allclose(X_B_O1[0], X_B_O1[-1]) else np.eye(4)
+                X_B_OO1 = [self.compute_oriented_affordance_frame(pose, base_frame=base_frame).A for pose in X_B_O1]
 
                 progress = self.linear_progress(len(phase_data))
-
                 X_OO1_O1 = [np.linalg.inv(x_b_oo1) @ x_bo1 for x_b_oo1, x_bo1 in zip(X_B_OO1, X_B_O1)]
-                # X_OO2_O2 = [np.linalg.inv(x_b_oo2) @ x_bo2 for x_b_oo2, x_bo2 in zip(X_B_OO2, X_B_O2)]
 
                 if phase == 0:     
                     X_OO_E_follower = [np.linalg.inv(x_b_oo1) @ x_be for x_b_oo1, x_be in zip(X_B_OO1, X_BE_follower)]
                     X_OO_E_leader = [np.linalg.inv(x_b_oo1) @ x_be for x_b_oo1, x_be in zip(X_B_OO1, X_BE_leader)]
                     orien_object = [matrix_to_rotation_6d(pose[:3, :3]) for pose in X_OO1_O1]
-                # elif phase == 1:
-                #     X_OO_E_follower = [np.linalg.inv(x_b_oo2) @ x_be for x_b_oo2, x_be in zip(X_B_OO2, X_BE_follower)]
-                #     X_OO_E_leader = [np.linalg.inv(x_b_oo2) @ x_be for x_b_oo2, x_be in zip(X_B_OO2, X_BE_leader)]
-                #     orien_object = [matrix_to_rotation_6d(pose[:3, :3]) for pose in X_OO2_O2]
 
-                # if object centric 
                 pos_follower, orien_follower = self.extract_robot_pos_orien(X_OO_E_follower)
                 pos_leader, orien_leader = self.extract_robot_pos_orien(X_OO_E_leader)
 
-                rlds[episode][str(int(phase))] = {
+                rlds[episode_index][str(int(phase))] = {
                     'X_BE_follower': X_BE_follower,
                     'X_BE_leader': X_BE_leader,
                     'robot_q': phase_data['robot_q'].tolist(),
@@ -104,9 +89,7 @@ class DatasetUtils:
                     'joint_torques': phase_data['joint_torques'].tolist(),
                     'ee_forces': phase_data['ee_forces'].tolist(),
                     'X_B_O1': X_B_O1,
-                    # 'X_B_O2': X_B_O2,
                     'X_B_OO1': X_B_OO1,
-                    # 'X_B_OO2': X_B_OO2,
                     'progress': progress,
                     'X_OO_E_follower': X_OO_E_follower,
                     'X_OO_E_leader': X_OO_E_leader,
@@ -116,21 +99,49 @@ class DatasetUtils:
                     'orien_leader': orien_leader,
                     'orien_object': orien_object,
                     'phase': phase_data['phase'].to_list()
-                     }
-                
+                }
+
+
+                # Add noisy variations
+                for i in range(num_noisy_variations):
+                    pos_follower_noisy = [add_noise(np.array(pos), pos_noise_level) for pos in pos_follower]
+                    orien_follower_noisy = [add_noise(np.array(orien), orien_noise_level) for orien in orien_follower]
+
+                    noisy_episode_index = original_num_episodes + episode_index * num_noisy_variations + i
+                    rlds[noisy_episode_index] = {}
+                    rlds[noisy_episode_index][str(int(phase))] = {
+                        'X_BE_follower': X_BE_follower,
+                        'X_BE_leader': X_BE_leader,
+                        'robot_q': phase_data['robot_q'].tolist(),
+                        'gello_q': phase_data['gello_q'].tolist(),
+                        'gripper_state': phase_data['gripper_state'].tolist(),
+                        'gripper_action': phase_data['gripper_action'].tolist(),
+                        'joint_torques': phase_data['joint_torques'].tolist(),
+                        'ee_forces': phase_data['ee_forces'].tolist(),
+                        'X_B_O1': X_B_O1,
+                        'X_B_OO1': X_B_OO1,
+                        'progress': progress,
+                        'X_OO_E_follower': X_OO_E_follower,
+                        'X_OO_E_leader': X_OO_E_leader,
+                        'pos_follower': pos_follower_noisy,
+                        'orien_follower': orien_follower_noisy,
+                        'pos_leader': pos_leader,
+                        'orien_leader': orien_leader,
+                        'orien_object': orien_object,
+                        'phase': phase_data['phase'].to_list()
+                    }
+
         stats = self.get_stats_rlds(rlds)
         rlds = self.normalize_rlds(rlds, stats)
 
-        # save the rlds
         with open(os.path.join(self.dataset_path, "rlds.pkl"), 'wb') as f:
             pickle.dump(rlds, f)
-        
-        # save the stats
+
         with open(os.path.join(self.dataset_path, "stats.pkl"), 'wb') as f:
             pickle.dump(stats, f)
-        
+
         return rlds, stats
-    
+        
 
     def get_stats_rlds(self, rlds):
 
@@ -185,6 +196,16 @@ class DatasetUtils:
         
     def create_sample_indices(self, rlds_dataset, sequence_length=16):
         indices = list()
+
+        # # WIP ------------------------------
+        # # ensure the same 10 episodes are sampled each time
+        # np.random.seed(0)
+        # # sample only 10 episodes from the full set
+        # episodes = list(rlds_dataset.keys())
+        # episodes = np.random.choice(episodes, 11, replace=False)
+        # rlds_dataset = {episode: rlds_dataset[episode] for episode in episodes}
+        # # WIP ------------------------------
+
         for episode in rlds_dataset.keys():
             for phase in rlds_dataset[episode].keys():
                 episode_length = len(rlds_dataset[episode][phase]['pos_follower'])
@@ -254,7 +275,6 @@ class DatasetUtils:
         # if the base frame is not the origin, we need to transform the matrix to the base frame
         if not np.array_equal(base_frame, np.eye(4)):
             transform_matrix = np.dot(np.linalg.inv(base_frame), transform_matrix) #X_OO
-
 
         # Extract the translation components (P_x, P_y) from the matrix
         P_x, P_y = transform_matrix[0, 3], transform_matrix[1, 3]
@@ -484,9 +504,9 @@ def detect_aruco_markers(dataset_path:str, marker_id:int=3, file_name:str="cup_f
 
 
 
-# fpath = "/home/krishan/work/2024/datasets/cup_rotate_phase_1"
+# fpath = "/home/krishan/work/2024/datasets/cup_20_demo_clean"
 # dataset_utils = DatasetUtils(fpath)
-# detect_aruco_markers(fpath, marker_id=3, file_name="cup_frames.json", dynamic_object=True)
+# detect_aruco_markers(fpath, marker_id=3, file_name="affordance_frames.json", dynamic_object=True)
 # detect_aruco_markers(fpath, marker_id=8, file_name="saucer_frames.json", dynamic_object=False)
 # rlds = dataset_utils.create_rlds()
 
