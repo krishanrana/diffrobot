@@ -41,11 +41,12 @@ class DiffusionPolicy():
         self.params = get_config(config_file, mode=mode)
         self.policy_type = policy_type
         self.mode = mode
-        self.precision = torch.float32
+        self.precision = torch.float16
 
         if self.mode == 'train':
             self.dutils = DatasetUtils(self.params.dataset_path)
         elif self.mode == 'infer':
+            self.params.dataset_path = "/home/bumblebee/work/diffrobot/diffrobot/diffusion_policy/runs/"
             self.dutils = DatasetUtils(self.params.dataset_path + saved_run_name)
 
         print('Using {} action frame'.format(self.params.action_frame))
@@ -392,31 +393,13 @@ class DiffusionPolicy():
 
         object_pose = [o['X_OO_O'] for o in obs_deque] # object pose in oriented frame
         object_orien = [matrix_to_rotation_6d(x[:3,:3]) for x in object_pose]
-        # tactile_sensor = [np.transpose(x['tactile_sensor'][1], (2,0,1)) for x in obs_deque] #get tactile sensor 1
-        # print(tactile_sensor[0])
-        # joint_torques = [x['joint_torques'] for x in obs_deque]
-        # ee_forces = [x['ee_forces'] for x in obs_deque]
-        # progress = [x['progress'] for x in obs_deque]
 
         # normalize data
         nee_pos = self.dutils.normalize_data(ee_pos, stats=self.stats['pos_follower'])
         ngripper_state = self.dutils.normalize_data(gripper_state, stats=self.stats['gripper_state']).reshape(-1, 1)
-        nphase = self.dutils.normalize_data(phase, stats=self.stats['phase']).reshape(-1, 1)
 
-        # ntactile_sensor = torch.from_numpy(normalize_data(np.array(tactile_sensor), stats=self.stats['tactile_data'])).to(self.device, dtype=self.precision)
-        # njoint_torques = normalize_data(joint_torques, stats=self.stats['joint_torques'])
-        # nee_forces = normalize_data(ee_forces, stats=self.stats['ee_forces'])
-        # nprogress = normalize_data(progress, stats=self.stats['progress']).reshape(-1, 1)
-
-        # robot_state = torch.from_numpy(np.concatenate([nee_pos, ee_orien, njoint_torques, nee_forces, nprogress], axis=-1)).to(self.device, dtype=self.precision)
-        # robot_state = torch.from_numpy(np.concatenate([nee_pos, ee_orien, object_orien, ngripper_state, nphase], axis=-1)).to(self.device, dtype=self.precision)
         robot_state = torch.from_numpy(np.concatenate([nee_pos, ee_orien, object_orien, ngripper_state], axis=-1)).to(self.device, dtype=self.precision)
         
-        # process tactile data
-        # tactile_features = self.ema_nets['tactile_encoder'](ntactile_sensor)
-
-
-        # obs_cond = torch.cat([robot_state, tactile_features], dim=-1)
         obs_cond = robot_state
         obs_cond = obs_cond.flatten(start_dim=0).unsqueeze(0)
                 
