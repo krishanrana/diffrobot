@@ -30,7 +30,7 @@ class RobotViz():
         # tranform to finray tcp
         X_FE = np.array([[0.70710678, 0.70710678, 0.0, 0.0], 
                         [-0.70710678, 0.70710678, 0, 0], 
-                        [0.0, 0.0, 1.0, 0.2], 
+                        [0.0, 0.0, 1.0, 0.1], 
                         [0.0, 0.0, 0.0, 1.0]])
         self.X_FE = sm.SE3(X_FE, check=False).norm()
         # import pdb; pdb.set_trace()

@@ -16,6 +16,8 @@ class DiffusionStateDataset(torch.utils.data.Dataset):
                  action_horizon: int,
                  stage: str,
                  transform,
+                 freq_divisor: int,
+                 symmetric: bool,
                  action_frame: str):
 
         self.action_frame = action_frame
@@ -23,8 +25,13 @@ class DiffusionStateDataset(torch.utils.data.Dataset):
         self.dutils = DatasetUtils(dataset_path)
         self.all_data, self.stats = self.dutils.create_rlds()
         self.stage = stage
+        self.symmetric = symmetric
 
-        indices = self.dutils.create_sample_indices(self.all_data)
+        self.freq_divisor = freq_divisor
+
+        # indices = self.dutils.create_sample_indices(self.all_data)
+        # WIP
+        indices = self.dutils.create_sample_indices(self.all_data, sequence_length=pred_horizon*self.freq_divisor)
         
         if self.action_frame == 'global':
             pass
@@ -52,26 +59,55 @@ class DiffusionStateDataset(torch.utils.data.Dataset):
 
     def sample_sequence(self, episode, phase, start_idx, end_idx):
 
-        episode = str(episode)
+        # episode = str(episode)
         phase = str(phase)
 
         # state data
-        pos_follower = self.all_data[episode][phase]['pos_follower'][start_idx:end_idx]
-        orien_follower = self.all_data[episode][phase]['orien_follower'][start_idx:end_idx]
-        progress = self.all_data[episode][phase]['progress'][start_idx:end_idx]
-        orien_object = self.all_data[episode][phase]['orien_object'][start_idx:end_idx]
-        gripper_state = self.all_data[episode][phase]['gripper_state'][start_idx:end_idx].reshape(-1, 1)
+        pos_follower = self.all_data[episode][phase]['pos_follower'][start_idx:end_idx:self.freq_divisor]
+        orien_follower = self.all_data[episode][phase]['orien_follower'][start_idx:end_idx:self.freq_divisor]
+        progress = self.all_data[episode][phase]['progress'][start_idx:end_idx:self.freq_divisor]
+        orien_object = self.all_data[episode][phase]['orien_object'][start_idx:end_idx:self.freq_divisor]
+        gripper_state = self.all_data[episode][phase]['gripper_state'][start_idx:end_idx:self.freq_divisor].reshape(-1, 1)
+
+
         # ep_phase = self.all_data[episode][phase]['phase'][start_idx:end_idx].reshape(-1, 1)    
 
+        # -----------------------------------------------------------------------------------------------------#
+
+        # #HACK: Add noise to pos_follower, decaying the noise from start_idx to end_idx
+        # noise = np.random.normal(0, 0.001, pos_follower.shape)
+        # noise = np.clip(noise, -0.008, 0.008)
+        # decay = (np.exp(-np.linspace(0, 1, len(noise)))**50)[:, np.newaxis]
+        # # exponential decay noise from start_idx to end_idx
+        # decayed_noise = noise * decay
+        # pos_follower += decayed_noise
+
+        # # add noise to orien_follower
+        # orien_follower = torch.stack(orien_follower)
+        # noise = np.random.normal(0, 0.001, orien_follower.shape)
+        # noise = np.clip(noise, -0.008, 0.008)
+        # decay = (np.exp(-np.linspace(0, 1, len(noise)))**50)[:, np.newaxis]
+        # # exponential decay noise from start_idx to end_idx
+        # decayed_noise = noise * decay
+        # orien_follower += decayed_noise
+
+        # -----------------------------------------------------------------------------------------------------#
+
+
+
+
         # robot_state = np.concatenate([pos_follower, orien_follower, orien_object, gripper_state, ep_phase], axis=-1)
-        robot_state = np.concatenate([pos_follower, orien_follower, orien_object, gripper_state], axis=-1)
+        if not self.symmetric:
+            robot_state = np.concatenate([pos_follower, orien_follower, orien_object, gripper_state], axis=-1)
+        else:
+            robot_state = np.concatenate([pos_follower, gripper_state], axis=-1)
         # robot_state = np.concatenate([pos_follower, orien_follower, gripper_state], axis=-1)
 
         # action data
-        pos_leader = self.all_data[episode][phase]['pos_leader'][start_idx:end_idx]
-        orien_leader = self.all_data[episode][phase]['orien_leader'][start_idx:end_idx]
-        gripper_action = self.all_data[episode][phase]['gripper_action'][start_idx:end_idx].reshape(-1, 1)
-        progress = self.all_data[episode][phase]['progress'][start_idx:end_idx].reshape(-1, 1)
+        pos_leader = self.all_data[episode][phase]['pos_leader'][start_idx:end_idx:self.freq_divisor]
+        orien_leader = self.all_data[episode][phase]['orien_leader'][start_idx:end_idx:self.freq_divisor]
+        gripper_action = self.all_data[episode][phase]['gripper_action'][start_idx:end_idx:self.freq_divisor].reshape(-1, 1)
+        progress = self.all_data[episode][phase]['progress'][start_idx:end_idx:self.freq_divisor].reshape(-1, 1)
 
         robot_action = np.concatenate([pos_leader, orien_leader, gripper_action, progress], axis=-1)
         
@@ -97,13 +133,15 @@ class DiffusionStateDataset(torch.utils.data.Dataset):
     
 
 # # # # # test
-# fpath = "/home/krishan/work/2024/datasets/cup_saucer"
+# fpath = "/home/krishan/work/2024/datasets/cup_10_demo"
 # dataset = DiffusionStateDataset(
 #     dataset_path=fpath,
 #     pred_horizon=16,
 #     obs_horizon=2,
 #     action_horizon=8,
 #     stage='train',
+#     transform=None,
+#     symmetric=False,
 #     action_frame='object_centric')
 # pdb.set_trace()
 
