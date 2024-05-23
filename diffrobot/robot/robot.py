@@ -80,6 +80,21 @@ class Robot:
         #     .pipe(ops.map(lambda _: self.get_tcp_pose())) \
 		# 	.pipe(ops.share())
     
+    def close_gripper_if_open(self) -> bool:
+        # print(f"Trying to close gripper. Width: {self.gripper.width()}")
+        if self.gripper.width() > 0.03:
+            # print("Passes")
+            self.gripper.close()
+            return True
+        return False
+
+    def open_gripper_if_closed(self) -> bool:
+        # print(f"Trying to open gripper. Width: {self.gripper.width()}")
+        if self.gripper.width() < 0.02:
+            self.gripper.open()
+            return True
+        return False
+    
     def recover_from_errors(self):
         self.frankx.recover_from_errors()
     

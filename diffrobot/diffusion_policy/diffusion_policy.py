@@ -405,7 +405,10 @@ class DiffusionPolicy():
         nee_pos = self.dutils.normalize_data(ee_pos, stats=self.stats['pos_follower'])
         ngripper_state = self.dutils.normalize_data(gripper_state, stats=self.stats['gripper_state']).reshape(-1, 1)
 
-        robot_state = torch.from_numpy(np.concatenate([nee_pos, ee_orien, object_orien, ngripper_state], axis=-1)).to(self.device, dtype=self.precision)
+        if not self.params.symmetric:
+            robot_state = torch.from_numpy(np.concatenate([nee_pos, ee_orien, object_orien, ngripper_state], axis=-1)).to(self.device, dtype=self.precision)
+        else:
+            robot_state = torch.from_numpy(np.concatenate([nee_pos, ngripper_state], axis=-1)).to(self.device, dtype=self.precision)
         
         obs_cond = robot_state
         obs_cond = obs_cond.flatten(start_dim=0).unsqueeze(0)
