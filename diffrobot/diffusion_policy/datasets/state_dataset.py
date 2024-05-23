@@ -69,38 +69,19 @@ class DiffusionStateDataset(torch.utils.data.Dataset):
         orien_object = self.all_data[episode][phase]['orien_object'][start_idx:end_idx:self.freq_divisor]
         gripper_state = self.all_data[episode][phase]['gripper_state'][start_idx:end_idx:self.freq_divisor].reshape(-1, 1)
 
-
-        # ep_phase = self.all_data[episode][phase]['phase'][start_idx:end_idx].reshape(-1, 1)    
-
-        # -----------------------------------------------------------------------------------------------------#
-
-        # #HACK: Add noise to pos_follower, decaying the noise from start_idx to end_idx
-        # noise = np.random.normal(0, 0.001, pos_follower.shape)
-        # noise = np.clip(noise, -0.008, 0.008)
-        # decay = (np.exp(-np.linspace(0, 1, len(noise)))**50)[:, np.newaxis]
-        # # exponential decay noise from start_idx to end_idx
-        # decayed_noise = noise * decay
-        # pos_follower += decayed_noise
-
-        # # add noise to orien_follower
-        # orien_follower = torch.stack(orien_follower)
-        # noise = np.random.normal(0, 0.001, orien_follower.shape)
-        # noise = np.clip(noise, -0.008, 0.008)
-        # decay = (np.exp(-np.linspace(0, 1, len(noise)))**50)[:, np.newaxis]
-        # # exponential decay noise from start_idx to end_idx
-        # decayed_noise = noise * decay
-        # orien_follower += decayed_noise
-
-        # -----------------------------------------------------------------------------------------------------#
+        if self.action_frame == 'ee_centric':
+            X_BE_follower = self.all_data[episode][phase]['X_BE_follower'][start_idx:end_idx:self.freq_divisor]
+            X_BE1_follower = X_BE_follower[:,0]
+            X_E1_E_follower = [np.linalg.inv(X_BE1_follower) @ X_BE for X_BE in X_BE_follower]
+            
 
 
-
-
+        
         # robot_state = np.concatenate([pos_follower, orien_follower, orien_object, gripper_state, ep_phase], axis=-1)
         if not self.symmetric:
             robot_state = np.concatenate([pos_follower, orien_follower, orien_object, gripper_state], axis=-1)
         else:
-            robot_state = np.concatenate([pos_follower, gripper_state], axis=-1)
+            robot_state = np.concatenate([pos_follower, orien_follower, gripper_state], axis=-1)
         # robot_state = np.concatenate([pos_follower, orien_follower, gripper_state], axis=-1)
 
         # action data

@@ -1,13 +1,14 @@
 import torch
 
-dataset_path = "/home/krishan/work/2024/datasets/cup_10_demo_clean"
+dataset_path = "/home/krishan/work/2024/datasets/cup_rotate_eval_10"
 
 symmetric = False
 
-down_dims = [128,256,512]
+down_dims = [128,256,256]
+diffusion_step_embed_dim = 128
 
 if symmetric:
-    low_dim = 4
+    low_dim = 10
 else:   
     low_dim = 16 #17 #23
 
@@ -20,7 +21,7 @@ obs_horizon = 3
 action_horizon = 8
 global_cond_dim = (obs_dim*obs_horizon)
 
-num_diffusion_iters = 100 # use 16 during inference
+num_diffusion_iters = 100
 
 batch_size = 256 #128
 num_workers = 11
