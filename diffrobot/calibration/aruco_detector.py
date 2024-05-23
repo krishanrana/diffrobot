@@ -92,7 +92,7 @@ class ArucoDetector:
         cv2.imshow("win2", rgb[:, :, ::-1])
         cv2.waitKey(1)
 
-    def detect_objects(self):
+    def detect_markers_from_camera(self):
         rgb = self.cam.get()['color']
         detected_markers = self.detect_markers(rgb)
         return detected_markers

@@ -11,7 +11,78 @@ import roboticstoolbox as rtb
 import spatialmath as sm
 import pandas as pd
 
+def adjust_orientation_to_z_up(matrix):
+    # matrix must be in the base frame of robot
+    # Extract the current Z direction
+    current_z = matrix[:3, 2]
+    target_z = np.array([0, 0, 1])
 
+    # Calculate the axis of rotation and the angle needed for correction
+    axis = np.cross(current_z, target_z)
+    angle = np.arccos(np.dot(current_z, target_z) / (np.linalg.norm(current_z) * np.linalg.norm(target_z)))
+
+    # Calculate the rotation matrix for aligning current_z to target_z
+    if np.linalg.norm(axis) != 0:  # Avoid division by zero if the axes are already aligned
+        axis = axis / np.linalg.norm(axis)
+        rotation_matrix = R.from_rotvec(axis * angle).as_matrix()
+    else:
+        rotation_matrix = np.eye(3)  # No rotation needed if axes are already aligned
+
+    # Construct the new transformation matrix
+    new_matrix = np.eye(4)
+    new_matrix[:3, :3] = np.dot(rotation_matrix, matrix[:3, :3])
+    new_matrix[:3, 3] = matrix[:3, 3]  # Preserve the original xyz position
+
+    return new_matrix
+
+def compute_oriented_affordance_frame(transform_matrix, base_frame=np.eye(4)):
+        """
+        Compute the angle needed to rotate the x-axis of a given transformation
+        matrix so that it points towards the origin [0,0,0]. Apply the rotation to the
+        transformation matrix and return the resulting matrix.
+
+        Parameters:
+        - transform_matrix: A 4x4 numpy array representing the homogeneous transformation matrix.
+
+        Returns:
+        - The transformation matrix with the x-axis pointing towards the origin.
+        """
+
+        # if the base frame is not the origin, we need to transform the matrix to the base frame
+        if not np.array_equal(base_frame, np.eye(4)):
+            transform_matrix = np.dot(np.linalg.inv(base_frame), transform_matrix) #X_OO
+
+        # Extract the translation components (P_x, P_y) from the matrix
+        P_x, P_y = transform_matrix[0, 3], transform_matrix[1, 3]
+        
+        # Calculate the angle between the vector pointing from the frame's current position
+        # to the origin and the global x-axis. This uses atan2 and is adjusted by 180 degrees
+        # to account for the direction towards the origin.
+        angle_to_origin = np.degrees(np.arctan2(-P_y, -P_x))
+        
+        # Calculate the initial orientation of the frame's x-axis relative to the global x-axis.
+        # This is the angle of rotation about the z-axis that has already been applied to the frame.
+        # We use the elements of the rotation matrix to find this angle.
+        R11, R21 = transform_matrix[0, 0], transform_matrix[1, 0]
+        initial_orientation = np.degrees(np.arctan2(R21, R11))
+        
+        # Compute the additional rotation needed from the frame's current orientation.
+        # This is the difference between the angle to the origin and the frame's initial orientation.
+        additional_rotation = angle_to_origin - initial_orientation
+        
+        # Normalize the result to the range [-180, 180]
+        additional_rotation = (additional_rotation + 180) % 360 - 180
+
+        # Create a new transformation matrix that applies the additional rotation to the original matrix.
+        og_pose = sm.SE3(transform_matrix, check=False).norm()
+        T = og_pose * sm.SE3.Rz(np.deg2rad(additional_rotation))
+
+        # if the base frame is not the origin, we need to transform the matrix back to the base frame
+        if not np.array_equal(base_frame, np.eye(4)):
+            T = base_frame * T
+            T = sm.SE3(T, check=False).norm()
+        
+        return T
 class DatasetUtils:
     def __init__(self, dataset_path=None):
         self.dataset_path = dataset_path
