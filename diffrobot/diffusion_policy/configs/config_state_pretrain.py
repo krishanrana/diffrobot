@@ -1,7 +1,10 @@
+import torch
 
 dataset_path = "/home/krishan/work/2024/datasets/cup_10_demo_clean"
 
 symmetric = False
+
+down_dims = [128,256,512]
 
 if symmetric:
     low_dim = 4
