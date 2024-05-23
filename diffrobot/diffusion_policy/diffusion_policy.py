@@ -58,6 +58,7 @@ class DiffusionPolicy():
         self.noise_pred_net = ConditionalUnet1D(
                         input_dim=self.params.action_dim,
                         global_cond_dim=self.params.global_cond_dim,
+                        diffusion_step_embed_dim=self.params.diffusion_step_embed_dim,
                         # down_dims=[256,512,1024],
                         down_dims=self.params.down_dims,
                         )

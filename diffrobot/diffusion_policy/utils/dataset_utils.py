@@ -574,12 +574,13 @@ def detect_aruco_markers(dataset_path:str, marker_id:int=3, file_name:str="cup_f
 
 
 
+if __name__ == "__main__":
 
-# fpath = "/home/krishan/work/2024/datasets/cup_20_demo_clean"
-# dataset_utils = DatasetUtils(fpath)
-# detect_aruco_markers(fpath, marker_id=3, file_name="affordance_frames.json", dynamic_object=True)
-# detect_aruco_markers(fpath, marker_id=8, file_name="saucer_frames.json", dynamic_object=False)
-# rlds = dataset_utils.create_rlds()
+    fpath = "/home/krishan/work/2024/datasets/cup_rotate_eval_20"
+    dataset_utils = DatasetUtils(fpath)
+    detect_aruco_markers(fpath, marker_id=3, file_name="affordance_frames.json", dynamic_object=True)
+    detect_aruco_markers(fpath, marker_id=8, file_name="saucer_frames.json", dynamic_object=False)
+    rlds = dataset_utils.create_rlds()
 
 
 
