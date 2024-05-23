@@ -35,13 +35,16 @@ class DiffusionPolicy():
                  finetune=False, 
                  saved_run_name=None,
                  mode='train',
-                 policy_type='vision'
-                 ):
+                 policy_type='vision'):
         
         self.params = get_config(config_file, mode=mode)
         self.policy_type = policy_type
         self.mode = mode
-        self.precision = torch.float16
+
+        if mode == 'train':
+            self.precision = torch.float32
+        elif mode == 'infer':
+            self.precision = torch.float16
 
         if self.mode == 'train':
             self.dutils = DatasetUtils(self.params.dataset_path)
@@ -54,7 +57,9 @@ class DiffusionPolicy():
         # create network object
         self.noise_pred_net = ConditionalUnet1D(
                         input_dim=self.params.action_dim,
-                        global_cond_dim=self.params.global_cond_dim
+                        global_cond_dim=self.params.global_cond_dim,
+                        # down_dims=[256,512,1024],
+                        down_dims=self.params.down_dims,
                         )
         
         # create tactile encoder
