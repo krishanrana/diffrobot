@@ -83,6 +83,7 @@ def compute_oriented_affordance_frame(transform_matrix, base_frame=np.eye(4)):
             T = sm.SE3(T, check=False).norm()
         
         return T
+
 class DatasetUtils:
     def __init__(self, dataset_path=None):
         self.dataset_path = dataset_path
@@ -134,8 +135,8 @@ class DatasetUtils:
                 X_BE_leader = [(self.robot.fkine(np.array(q), "panda_link8") * self.X_FE).A for q in phase_data['gello_q']]
 
                 X_B_O1 = df_object[df_object['frame_id'].isin(phase_data['idx'])]
-
                 X_B_O1 = [self.adjust_orientation_to_z_up(np.array(pose)) for pose in X_B_O1['X_BO']]
+                
                 base_frame = np.array(X_BE_follower[0]) if np.allclose(X_B_O1[0], X_B_O1[-1]) else np.eye(4)
                 X_B_OO1 = [self.compute_oriented_affordance_frame(pose, base_frame=base_frame).A for pose in X_B_O1]
 
@@ -493,7 +494,6 @@ def detect_aruco_markers(dataset_path:str, marker_id:int=3, file_name:str="cup_f
             corners_f, ids_f, rejectedImgPoints_f = cv2.aruco.detectMarkers(frame_f, aruco_dict, parameters=parameters)
 
             X_BE = np.array(state_data[frame_id]["X_BE"])
-            X_BF = np.dot(X_BE, np.linalg.inv(X_FE))
 
             X_BC_b = np.dot(X_BE, X_EC_b)
             X_BC_f = np.dot(X_BE, X_EC_f)
@@ -576,10 +576,11 @@ def detect_aruco_markers(dataset_path:str, marker_id:int=3, file_name:str="cup_f
 
 if __name__ == "__main__":
 
-    fpath = "/home/krishan/work/2024/datasets/cup_rotate_eval_20"
+    fpath = "/home/krishan/work/2024/datasets/teapot_rotate_10_demos_again"
     dataset_utils = DatasetUtils(fpath)
-    detect_aruco_markers(fpath, marker_id=3, file_name="affordance_frames.json", dynamic_object=True)
-    detect_aruco_markers(fpath, marker_id=8, file_name="saucer_frames.json", dynamic_object=False)
+    detect_aruco_markers(fpath, marker_id=4, file_name="affordance_frames.json", dynamic_object=True)
+    # detect_aruco_markers(fpath, marker_id=10, file_name="affordance_frames.json", dynamic_object=False)
+    # detect_aruco_markers(fpath, marker_id=3, file_name="relative_frame.json", dynamic_object=False)
     rlds = dataset_utils.create_rlds()
 
 
