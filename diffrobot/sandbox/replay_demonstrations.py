@@ -10,7 +10,7 @@ from scipy.spatial.transform import Rotation as R
 from diffrobot.diffusion_policy.utils.dataset_utils import DatasetUtils
 
 
-dataset_path = "/home/krishan/work/2024/datasets/cup_10_demo"
+dataset_path = "/home/krishan/work/2024/datasets/cup_10_demos_again"
 dutils = DatasetUtils(dataset_path)
 rlds, stats = dutils.create_rlds()
 env = RobotViz()
@@ -61,8 +61,9 @@ for episode in rlds:
 
             # env.object_pose.T = sm.SE3(EE_pose, check=False).norm()
             env.policy_pose.T = sm.SE3(X_BE, check=False).norm()
-            # env.cup_handle.T = sm.SE3(X_B_O2, check=False).norm()
-            env.step(phase_data['robot_q'][idx], robot_q_recovered[0])
+            env.cup_handle.T = sm.SE3(X_B_O1, check=False).norm()
+            env.step(phase_data['gello_q'][idx])
+            # env.step(phase_data['gello_q'][idx], robot_q_recovered[0])
             time.sleep(0.1)
     
     
