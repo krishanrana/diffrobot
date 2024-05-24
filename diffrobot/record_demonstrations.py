@@ -16,7 +16,7 @@ import pyrealsense2 as rs
 
 @dataclass
 class Params:
-    name: str
+    name: tyro.conf.PositionalRequiredArgs[str]
     idx: int = 0
 
 class DataRecorder:

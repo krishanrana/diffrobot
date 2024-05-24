@@ -217,7 +217,7 @@ class DiffusionPolicy():
             
         if mode == 'infer':
             self.load_weights(saved_run_name)
-            stats_path = os.path.join("../runs", saved_run_name, 'stats.npy')
+            stats_path = os.path.join("/mnt/droplet/", saved_run_name, 'stats.npy')
             self.stats = np.load(stats_path, allow_pickle=True).item()
             if policy_type == 'vision':
                 self.transform = Compose([Resize((self.params.im_width, self.params.im_height)), FixedCropTransform(10, 10, 288, 216)])
@@ -228,11 +228,11 @@ class DiffusionPolicy():
         self.ema_nets = copy.deepcopy(self.nets)
 
         if load_best:
-            fpath_ema = os.path.join("../runs", saved_run_name, "saved_weights", 'best', 'ema.ckpt')
-            fpath_nets = os.path.join("../runs", saved_run_name, "saved_weights", 'best', 'net.ckpt')
+            fpath_ema = os.path.join("/mnt/droplet/", saved_run_name, "saved_weights", 'best', 'ema.ckpt')
+            fpath_nets = os.path.join("/mnt/droplet/", saved_run_name, "saved_weights", 'best', 'net.ckpt')
         else:
-            fpath_ema = os.path.join("../runs", saved_run_name, "saved_weights", 'ema.ckpt')
-            fpath_nets = os.path.join("../runs", saved_run_name, "saved_weights", 'net.ckpt')
+            fpath_ema = os.path.join("/mnt/droplet/", saved_run_name, "saved_weights", 'ema.ckpt')
+            fpath_nets = os.path.join("/mnt/droplet/", saved_run_name, "saved_weights", 'net.ckpt')
 
         state_dict_nets = torch.load(fpath_nets, map_location='cuda')
         self.nets.load_state_dict(state_dict_nets)
@@ -385,9 +385,11 @@ class DiffusionPolicy():
 
         X_BO = obs_deque[0]['X_BO']
         X_B_OO = obs_deque[0]['X_B_OO']
+        
 
         gripper_state = [o['gripper_state'] for o in obs_deque]
         phase = [o['phase'] for o in obs_deque]
+        progress = [o['progress'] for o in obs_deque]
 
         if self.params.action_frame == 'object_centric':
             ee_pose = [np.dot(np.linalg.inv(X_B_OO), o['X_BE']) for o in obs_deque] # X_OO_E
@@ -404,11 +406,12 @@ class DiffusionPolicy():
         # normalize data
         nee_pos = self.dutils.normalize_data(ee_pos, stats=self.stats['pos_follower'])
         ngripper_state = self.dutils.normalize_data(gripper_state, stats=self.stats['gripper_state']).reshape(-1, 1)
+        nprogress = self.dutils.normalize_data(progress, stats=self.stats['progress']).reshape(-1, 1)
 
         if not self.params.symmetric:
             robot_state = torch.from_numpy(np.concatenate([nee_pos, ee_orien, object_orien, ngripper_state], axis=-1)).to(self.device, dtype=self.precision)
         else:
-            robot_state = torch.from_numpy(np.concatenate([nee_pos, ngripper_state], axis=-1)).to(self.device, dtype=self.precision)
+            robot_state = torch.from_numpy(np.concatenate([nee_pos, ee_orien, ngripper_state], axis=-1)).to(self.device, dtype=self.precision)
         
         obs_cond = robot_state
         obs_cond = obs_cond.flatten(start_dim=0).unsqueeze(0)
