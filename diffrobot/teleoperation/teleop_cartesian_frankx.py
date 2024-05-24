@@ -22,7 +22,7 @@ class Teleop:
 		
 
 		self.gello = create_gello()
-		self.home_q = np.deg2rad([-90, 0, 0, -90, 0, 90, 45]) # left
+		self.home_q = np.deg2rad([0, 0, 0, -90, 0, 90, 45]) # left
 		# self.home_q = np.deg2rad([0, 0, 0, -90, 0, 90, 45]) # front
 		self.stop_requested = False
 		self.motion = None
@@ -154,7 +154,7 @@ class Teleop:
 
 			self.robot_visualiser.ee_pose.T = sm.SE3((np.array(robot_state.O_T_EE)).reshape(4,4).T, check=False).norm()	
 			self.robot_visualiser.policy_pose.T = target_pose 
-			# self.robot_visualiser.step(robot_state.q, gello_q[:7])
+			self.robot_visualiser.step(robot_state.q, gello_q[:7])
 			
 			self.trans, self.orien = matrix_to_pos_orn(target_pose)
 
@@ -207,7 +207,7 @@ def create_gello() -> DynamixelRobot:
 				real=True,
 				joint_ids=(1, 2, 3, 4, 5, 6, 7),
 				joint_offsets=(
-					5 * np.pi / 2,
+					1 * np.pi / 2,
 					2 * np.pi / 2,
 					0 * np.pi / 2,
 					2 * np.pi / 2,
