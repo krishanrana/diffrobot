@@ -176,19 +176,20 @@ class MakeTeaTask:
             'spoon': ManipObject(name='spoon', aruco_key=8),
         }       
         self.sub_tasks : list[Task] = [
-            CupRotate(
-                policy_name='fast-aardvark-129_state',
-                oriented_frame_reference='base', 
-                progress_threshold=0.98,
-                affordance_frame='cup', 
-                cup=self.objects['cup']),
-            PlaceSaucer(
-                policy_name='laced-cosmos-124_state',
-                oriented_frame_reference='cup', 
-                progress_threshold=0.84,
-                affordance_frame='saucer', 
-                saucer=self.objects['saucer']),
+            # CupRotate(
+            #     policy_name= 'sleek-dew-119_state',#'robust-plant-142_state',
+            #     oriented_frame_reference='base', 
+            #     progress_threshold=0.98,
+            #     affordance_frame='cup', 
+            #     cup=self.objects['cup']),
+            # PlaceSaucer(
+            #     policy_name='dainty-sun-148_state',
+            #     oriented_frame_reference='cup', 
+            #     progress_threshold=0.84,
+            #     affordance_frame='saucer', 
+            #     saucer=self.objects['saucer']),
             TeapotRotate(
+                policy_name='dainty-sun-148_state',
                 oriented_frame_reference='base', 
                 affordance_frame='teapot', 
                 cup=self.objects['cup'], 
@@ -294,6 +295,7 @@ class MakeTeaTask:
                 "X_B_OO": X_B_OO,
                 "X_OO_O": X_OO_O,
                 "gripper_state": robot.gripper.width(),
+                "progress": task.current_task().progress,
                 "phase": task.phase}
 
     
@@ -315,7 +317,8 @@ class MakeTeaTask:
 
         # more above the cup
         # compute sweep angle to go above the cup
-        cup = self.objects['cup']
+        # cup = self.objects['cup']
+        cup = self.objects['teapot']
         X_BO_cup = cup.X_BO_last_seen
         angle = np.arctan2(X_BO_cup[1, 3], X_BO_cup[0, 3])
         robot.move_to_joints(np.deg2rad([np.rad2deg(angle), 0, 0, -110, 0, 110, 45]))
@@ -347,7 +350,8 @@ class RobotInferenceController:
                 continue
             policy = DiffusionPolicy(mode='infer',
                                     policy_type='state',
-                                    config_file=f'../runs/{t.policy_name}/config_state_pretrain',
+                                    # config_file=f'../runs/{t.policy_name}/config_state_pretrain',
+                                    config_file=f'/mnt/droplet/{t.policy_name}/config_state_pretrain',
                                     finetune=False,
                                     saved_run_name=t.policy_name)
             self.policies[t.name] = policy
@@ -415,8 +419,15 @@ class RobotInferenceController:
                         input("Press Enter to continue...")
                     break
 
+                # robot_state = motion.get_robot_state()
+                # self.robot_visualiser.ee_pose.T = sm.SE3((np.array(robot_state.O_T_EE)).reshape(4,4).T, check=False).norm()	
+                # self.robot_visualiser.policy_pose.T = action[i] 
+                # self.robot_visualiser.step(robot_state.q)
+
                 current_task.print_progress()
                 time.sleep(0.2)
+
+                # pdb.set_trace()
                 
                 
 
