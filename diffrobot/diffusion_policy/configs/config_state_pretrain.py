@@ -1,8 +1,7 @@
 import torch
 
-dataset_path = "/home/krishan/work/2024/datasets/cup_rotate_eval_10"
-
-symmetric = False
+dataset_path = "/home/krishan/work/2024/datasets/teapot_place_10_demo" # TODO: DID YOU UPDATE THE SYMETRIC FLAG BELOW?
+symmetric = True
 
 down_dims = [128,256,256]
 diffusion_step_embed_dim = 128
@@ -21,7 +20,7 @@ obs_horizon = 3
 action_horizon = 8
 global_cond_dim = (obs_dim*obs_horizon)
 
-num_diffusion_iters = 100
+num_diffusion_iters = 50
 
 batch_size = 256 #128
 num_workers = 11
