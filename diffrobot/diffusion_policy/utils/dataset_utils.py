@@ -204,6 +204,11 @@ class DatasetUtils:
                     }
 
         stats = self.get_stats_rlds(rlds)
+        stats['gripper_action']['min'] = np.array([0.0])
+        stats['gripper_action']['max'] = np.array([1.0])
+        stats['gripper_state']['min'] = np.array([0.002619443228468299])
+        stats['gripper_state']['max'] = np.array([0.06950554251670837])
+
         rlds = self.normalize_rlds(rlds, stats)
 
         with open(os.path.join(self.dataset_path, "rlds.pkl"), 'wb') as f:
@@ -243,11 +248,13 @@ class DatasetUtils:
         stats['progress'] = self.get_data_stats(all_progress)
         # stats['phase'] = self.get_data_stats(all_phase)
 
+
         return stats
     
     def normalize_rlds(self, rlds, stats):
         for episode in rlds:
             ep_data = rlds[episode]
+            # print("Normalizing episode {}".format(episode))
             for phase in ep_data:
                 phase_data = ep_data[phase]
                 phase_data['pos_follower'] = self.normalize_data(phase_data['pos_follower'], stats['pos_follower'])
@@ -334,51 +341,46 @@ class DatasetUtils:
     def compute_oriented_affordance_frame(self, transform_matrix, base_frame=np.eye(4)):
         """
         Compute the angle needed to rotate the x-axis of a given transformation
-        matrix so that it points towards the origin [0,0,0]. Apply the rotation to the
+        matrix so that it points towards the base frame. Apply the rotation to the
         transformation matrix and return the resulting matrix.
 
         Parameters:
         - transform_matrix: A 4x4 numpy array representing the homogeneous transformation matrix.
+        - base_frame: A 4x4 numpy array representing the base frame (default is the identity matrix).
 
         Returns:
-        - The transformation matrix with the x-axis pointing towards the origin.
+        - The transformation matrix with the x-axis pointing towards the base frame.
         """
+        # Convert inputs to numpy arrays if they are not already
+        transform_matrix = np.array(transform_matrix)
+        base_frame = np.array(base_frame)
 
-        # if the base frame is not the origin, we need to transform the matrix to the base frame
-        if not np.array_equal(base_frame, np.eye(4)):
-            transform_matrix = np.dot(np.linalg.inv(base_frame), transform_matrix) #X_OO
-
-        # Extract the translation components (P_x, P_y) from the matrix
-        P_x, P_y = transform_matrix[0, 3], transform_matrix[1, 3]
+        # Calculate the position of the base frame in global coordinates
+        ref_position_global = base_frame[:3, 3]
         
-        # Calculate the angle between the vector pointing from the frame's current position
-        # to the origin and the global x-axis. This uses atan2 and is adjusted by 180 degrees
-        # to account for the direction towards the origin.
-        angle_to_origin = np.degrees(np.arctan2(-P_y, -P_x))
+        # Extract the position of the transform matrix (T1) in global coordinates
+        position_global = transform_matrix[:3, 3]
         
-        # Calculate the initial orientation of the frame's x-axis relative to the global x-axis.
-        # This is the angle of rotation about the z-axis that has already been applied to the frame.
-        # We use the elements of the rotation matrix to find this angle.
+        # Calculate the direction vector from T1 to the base frame
+        direction_vector = ref_position_global - position_global
+        
+        # Calculate the angle between the x-axis of T1 and the direction vector
+        angle_to_reference = np.degrees(np.arctan2(direction_vector[1], direction_vector[0]))
+        
+        # Extract the current orientation of the x-axis of T1
         R11, R21 = transform_matrix[0, 0], transform_matrix[1, 0]
-        initial_orientation = np.degrees(np.arctan2(R21, R11))
+        current_orientation = np.degrees(np.arctan2(R21, R11))
         
-        # Compute the additional rotation needed from the frame's current orientation.
-        # This is the difference between the angle to the origin and the frame's initial orientation.
-        additional_rotation = angle_to_origin - initial_orientation
+        # Calculate the additional rotation needed to align the x-axis with the direction vector
+        additional_rotation = angle_to_reference - current_orientation
         
         # Normalize the result to the range [-180, 180]
         additional_rotation = (additional_rotation + 180) % 360 - 180
-
-        # Create a new transformation matrix that applies the additional rotation to the original matrix.
-        og_pose = sm.SE3(transform_matrix, check=False).norm()
-        T = og_pose * sm.SE3.Rz(np.deg2rad(additional_rotation))
-
-        # if the base frame is not the origin, we need to transform the matrix back to the base frame
-        if not np.array_equal(base_frame, np.eye(4)):
-            T = base_frame * T
-            T = sm.SE3(T, check=False).norm()
         
-        return T
+        # Apply the additional rotation to T1 about the z-axis
+        resulting_frame = sm.SE3(transform_matrix, check=False).norm()  * sm.SE3.Rz(np.deg2rad(additional_rotation))
+        
+        return resulting_frame
 
 
 
@@ -479,6 +481,7 @@ def detect_aruco_markers(dataset_path:str, marker_id:int=3, file_name:str="cup_f
         frame_id = -1
 
         detection_list = []
+        marker_info = None 
         saved_first_frame = False
 
         X_BO = None
@@ -506,6 +509,7 @@ def detect_aruco_markers(dataset_path:str, marker_id:int=3, file_name:str="cup_f
                     intrinsics = intrinsics_b
                     distcoeffs = distortion_b
                     print("Pose detected for episode {} at frame {} in the back camera".format(episode, frame_id))
+                    # pdb.set_trace()
             elif (ids_f is not None) and (marker_id in ids_f):
                     ids = ids_f
                     corners = corners_f
@@ -514,6 +518,7 @@ def detect_aruco_markers(dataset_path:str, marker_id:int=3, file_name:str="cup_f
                     intrinsics = intrinsics_f
                     distcoeffs = distortion_f
                     print("Pose detected for episode {} at frame {} in the front camera".format(episode, frame_id))
+                    # pdb.set_trace()
             else:
                 print("No markers found for episode ", episode)
                 detection_list.append({
@@ -562,6 +567,7 @@ def detect_aruco_markers(dataset_path:str, marker_id:int=3, file_name:str="cup_f
             json.dump(detection_list, f)
 
         if not dynamic_object:
+            assert(marker_info is not None)
             with open(os.path.join(dataset_path, "episodes", str(episode), file_name), 'w') as f:
                 json.dump(marker_info, f)
 
@@ -576,9 +582,9 @@ def detect_aruco_markers(dataset_path:str, marker_id:int=3, file_name:str="cup_f
 
 if __name__ == "__main__":
 
-    fpath = "/home/krishan/work/2024/datasets/teapot_rotate_10_demos_again"
+    fpath = "/home/krishan/work/2024/datasets/teapot_place_10_demo"
     dataset_utils = DatasetUtils(fpath)
-    detect_aruco_markers(fpath, marker_id=4, file_name="affordance_frames.json", dynamic_object=True)
+    detect_aruco_markers(fpath, marker_id=3, file_name="affordance_frames.json", dynamic_object=False)
     # detect_aruco_markers(fpath, marker_id=10, file_name="affordance_frames.json", dynamic_object=False)
     # detect_aruco_markers(fpath, marker_id=3, file_name="relative_frame.json", dynamic_object=False)
     rlds = dataset_utils.create_rlds()

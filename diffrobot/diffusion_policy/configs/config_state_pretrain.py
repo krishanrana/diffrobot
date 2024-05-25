@@ -1,6 +1,6 @@
 import torch
 
-dataset_path = "/home/krishan/work/2024/datasets/saucer_20_demos_FINAL" # TODO: DID YOU UPDATE THE SYMETRIC FLAG BELOW?
+dataset_path = "/home/krishan/work/2024/datasets/teapot_place_10_demo" # TODO: DID YOU UPDATE THE SYMETRIC FLAG BELOW?
 symmetric = True
 
 down_dims = [128,256,256]

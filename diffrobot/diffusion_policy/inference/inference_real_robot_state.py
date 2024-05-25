@@ -190,7 +190,8 @@ class MakeTeaTask:
             #     saucer=self.objects['saucer']),
             TeapotRotate(
                 policy_name='dainty-sun-148_state',
-                oriented_frame_reference='base', 
+                oriented_frame_reference='base',
+                progress_threshold=0.98, 
                 affordance_frame='teapot', 
                 cup=self.objects['cup'], 
                 teapot=self.objects['teapot']),
