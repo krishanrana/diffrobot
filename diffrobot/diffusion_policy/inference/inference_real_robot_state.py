@@ -189,19 +189,23 @@ class MakeTeaTask:
             #     affordance_frame='saucer', 
             #     saucer=self.objects['saucer']),
             TeapotRotate(
-                policy_name='dainty-sun-148_state',
-                oriented_frame_reference='base',
-                progress_threshold=0.98, 
-                affordance_frame='teapot', 
+                policy_name='worldly-tree-149_state',
+                oriented_frame_reference='base', 
+                affordance_frame='teapot',
+                progress_threshold=0.94, 
                 cup=self.objects['cup'], 
                 teapot=self.objects['teapot']),
             TeapotPour(
-                oriented_frame_reference='teapot', 
+                policy_name='dazzling-puddle-152_state',
+                oriented_frame_reference='teapot',
+                progress_threshold=0.87, 
                 affordance_frame='cup', 
                 cup=self.objects['cup']),
             TeapotPlace(
-                oriented_frame_reference='cup', 
-                affordance_frame='teapot', 
+                oriented_frame_reference='teapot',
+                policy_name='rosy-water-153_state',
+                progress_threshold=0.90,
+                affordance_frame='cup', 
                 cup=self.objects['cup']),
             PickSpoon(
                 oriented_frame_reference='base', 
@@ -325,9 +329,6 @@ class MakeTeaTask:
         robot.move_to_joints(np.deg2rad([np.rad2deg(angle), 0, 0, -110, 0, 110, 45]))
 
 
-
-
-
 class RobotInferenceController:
     def __init__(self, 
                 perception_system: PerceptionSystem,
@@ -337,7 +338,7 @@ class RobotInferenceController:
         self.robot = robot
         self.perception_system = perception_system
         self.task = task
-        # self.robot_visualiser = RobotViz()
+        self.robot_visualiser = RobotViz()
         self.setup_diffusion_policy()
 
 
@@ -417,13 +418,18 @@ class RobotInferenceController:
                         print(f"Moving to next phase")
                         self.task.go_to_next_phase()
                         self.obs_deque.clear()
+                        time.sleep(0.5)
                         input("Press Enter to continue...")
                     break
 
-                # robot_state = motion.get_robot_state()
-                # self.robot_visualiser.ee_pose.T = sm.SE3((np.array(robot_state.O_T_EE)).reshape(4,4).T, check=False).norm()	
-                # self.robot_visualiser.policy_pose.T = action[i] 
-                # self.robot_visualiser.step(robot_state.q)
+                robot_state = motion.get_robot_state()
+                self.robot_visualiser.ee_pose.T = sm.SE3((np.array(robot_state.O_T_EE)).reshape(4,4).T, check=False).norm()	
+                self.robot_visualiser.policy_pose.T = action[i] 
+                self.robot_visualiser.step(robot_state.q)
+
+                # if task is teapot place, check if the teapot is in the cup
+                if task.current_task().name == 'teapot_place':
+                    pdb.set_trace()
 
                 current_task.print_progress()
                 time.sleep(0.2)
