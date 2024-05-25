@@ -68,15 +68,13 @@ class DiffusionStateDataset(torch.utils.data.Dataset):
         progress = self.all_data[episode][phase]['progress'][start_idx:end_idx:self.freq_divisor]
         orien_object = self.all_data[episode][phase]['orien_object'][start_idx:end_idx:self.freq_divisor]
         gripper_state = self.all_data[episode][phase]['gripper_state'][start_idx:end_idx:self.freq_divisor].reshape(-1, 1)
+        progress = self.all_data[episode][phase]['progress'][start_idx:end_idx:self.freq_divisor].reshape(-1, 1)
 
         if self.action_frame == 'ee_centric':
             X_BE_follower = self.all_data[episode][phase]['X_BE_follower'][start_idx:end_idx:self.freq_divisor]
             X_BE1_follower = X_BE_follower[:,0]
             X_E1_E_follower = [np.linalg.inv(X_BE1_follower) @ X_BE for X_BE in X_BE_follower]
-            
 
-
-        
         # robot_state = np.concatenate([pos_follower, orien_follower, orien_object, gripper_state, ep_phase], axis=-1)
         if not self.symmetric:
             robot_state = np.concatenate([pos_follower, orien_follower, orien_object, gripper_state], axis=-1)
@@ -88,7 +86,6 @@ class DiffusionStateDataset(torch.utils.data.Dataset):
         pos_leader = self.all_data[episode][phase]['pos_leader'][start_idx:end_idx:self.freq_divisor]
         orien_leader = self.all_data[episode][phase]['orien_leader'][start_idx:end_idx:self.freq_divisor]
         gripper_action = self.all_data[episode][phase]['gripper_action'][start_idx:end_idx:self.freq_divisor].reshape(-1, 1)
-        progress = self.all_data[episode][phase]['progress'][start_idx:end_idx:self.freq_divisor].reshape(-1, 1)
 
         robot_action = np.concatenate([pos_leader, orien_leader, gripper_action, progress], axis=-1)
         

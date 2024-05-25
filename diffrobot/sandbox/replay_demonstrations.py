@@ -10,7 +10,8 @@ from scipy.spatial.transform import Rotation as R
 from diffrobot.diffusion_policy.utils.dataset_utils import DatasetUtils
 
 
-dataset_path = "/home/krishan/work/2024/datasets/cup_10_demo"
+dataset_path = "/home/krishan/work/2024/datasets/cup_10_demos_again"
+# dataset_path = "/home/krishan/work/2024/datasets/teapot_pour_10_demos_again"
 dutils = DatasetUtils(dataset_path)
 rlds, stats = dutils.create_rlds()
 env = RobotViz()
@@ -31,8 +32,12 @@ for episode in rlds:
         len_phase = len(phase_data['X_BE_follower'])
 
         for idx in range(len_phase):
-            if idx % 2 == 0:
-                continue
+
+            if idx == 1:
+                pdb.set_trace()
+
+            # if idx % 2 == 0:
+            #     continue
 
             X_BE = np.array(phase_data['X_BE_follower'][idx])
             X_BE_leader = np.array(phase_data['X_BE_leader'][idx])
@@ -61,9 +66,11 @@ for episode in rlds:
 
             # env.object_pose.T = sm.SE3(EE_pose, check=False).norm()
             env.policy_pose.T = sm.SE3(X_BE, check=False).norm()
-            # env.cup_handle.T = sm.SE3(X_B_O2, check=False).norm()
-            env.step(phase_data['robot_q'][idx], robot_q_recovered[0])
-            time.sleep(0.1)
+            env.cup_handle.T = sm.SE3(X_B_OO1, check=False).norm()
+            env.step(phase_data['gello_q'][idx])
+            # env.step(phase_data['gello_q'][idx], robot_q_recovered[0])
+            time.sleep(0.001)
+        
     
     
     # for idx, state in enumerate(data):
