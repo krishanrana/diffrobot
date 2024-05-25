@@ -196,15 +196,15 @@ class MakeTeaTask:
                 cup=self.objects['cup'], 
                 teapot=self.objects['teapot']),
             TeapotPour(
-                policy_name='dazzling-puddle-152_state',
+                policy_name='sage-frost-155_state',
                 oriented_frame_reference='teapot',
                 progress_threshold=0.87, 
                 affordance_frame='cup', 
                 cup=self.objects['cup']),
             TeapotPlace(
                 oriented_frame_reference='teapot',
-                policy_name='rosy-water-153_state',
-                progress_threshold=0.90,
+                policy_name='honest-aardvark-154_state',
+                progress_threshold=0.85,
                 affordance_frame='cup', 
                 cup=self.objects['cup']),
             PickSpoon(
@@ -425,11 +425,14 @@ class RobotInferenceController:
                 robot_state = motion.get_robot_state()
                 self.robot_visualiser.ee_pose.T = sm.SE3((np.array(robot_state.O_T_EE)).reshape(4,4).T, check=False).norm()	
                 self.robot_visualiser.policy_pose.T = action[i] 
+                # visualize the X_B_OO from deques
+                self.robot_visualiser.object_pose.T = self.obs_deque[-1]["X_B_OO"]
+                self.robot_visualiser.orientation_frame.T = self.obs_deque[-2]["X_BO"]
                 self.robot_visualiser.step(robot_state.q)
 
-                # if task is teapot place, check if the teapot is in the cup
-                if task.current_task().name == 'teapot_place':
-                    pdb.set_trace()
+                # # if task is teapot place, check if the teapot is in the cup
+                # if task.current_task().name == 'teapot_place':
+                #     pdb.set_trace()
 
                 current_task.print_progress()
                 time.sleep(0.2)
