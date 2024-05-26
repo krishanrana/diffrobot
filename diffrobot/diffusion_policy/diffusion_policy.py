@@ -47,10 +47,10 @@ class DiffusionPolicy():
             self.precision = torch.float16
 
         if self.mode == 'train':
-            self.dutils = DatasetUtils(self.params.dataset_path)
+            self.dutils = DatasetUtils(self.params.dataset_path, transformed_affordance=self.params.transformed_affordance)
         elif self.mode == 'infer':
             self.params.dataset_path = "/home/bumblebee/work/diffrobot/diffrobot/diffusion_policy/runs/"
-            self.dutils = DatasetUtils(self.params.dataset_path + saved_run_name)
+            self.dutils = DatasetUtils(self.params.dataset_path + saved_run_name, transformed_affordance=self.params.transformed_affordance)
 
         print('Using {} action frame'.format(self.params.action_frame))
 
@@ -153,6 +153,9 @@ class DiffusionPolicy():
             os.makedirs(self.fpath + '/saved_weights/best', exist_ok=True)
             # copy params file to run folder
             os.system('cp ' + 'configs/' + config_file + '.py' + ' ' + self.fpath)
+
+            # copy transforms folder to run folder
+            os.system('cp -r ' + self.params.dataset_path + '/transforms ' + self.fpath)
 
             self.last_best_loss = 10000
 

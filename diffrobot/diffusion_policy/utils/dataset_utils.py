@@ -83,7 +83,7 @@ def compute_oriented_affordance_frame(transform_matrix, base_frame=np.eye(4)):
 
 
 class DatasetUtils:
-    def __init__(self, dataset_path=None):
+    def __init__(self, dataset_path=None, transformed_affordance=False):
         self.dataset_path = dataset_path
         self.robot = rtb.models.Panda()
         self.X_FE = np.array([[0.70710678, 0.70710678, 0.0, 0.0], 
@@ -91,6 +91,7 @@ class DatasetUtils:
                             [0.0, 0.0, 1.0, 0.2], 
                             [0.0, 0.0, 0.0, 1.0]])
         self.X_FE = sm.SE3(self.X_FE, check=False).norm()
+        self.transformed_affordance = transformed_affordance
         # self.affordance_transforms = json.load(open(os.path.join(self.dataset_path, "transforms", "to_afford.json"), "r"))  
 
     def create_rlds(self, num_noisy_variations=5):
@@ -104,6 +105,10 @@ class DatasetUtils:
         rlds = {}
         episodes = sorted(os.listdir(os.path.join(self.dataset_path, "episodes")), key=lambda x: int(x))
         original_num_episodes = len(episodes)
+
+        if self.transformed_affordance:
+            X_OA_path = os.path.join(self.dataset_path, "transforms", "affordance_transform.json")
+            X_OA = json.load(open(X_OA_path, "r"))['X_OA']
 
         for episode_index, episode in enumerate(episodes):
             episode_path = os.path.join(self.dataset_path, "episodes", episode, "state.json")
@@ -134,6 +139,11 @@ class DatasetUtils:
 
                 X_B_O1 = df_object[df_object['frame_id'].isin(phase_data['idx'])]
                 X_B_O1 = [self.adjust_orientation_to_z_up(np.array(pose)) for pose in X_B_O1['X_BO']]
+
+                # TODO: Transform to object-object affordance frame (centre of cup)
+                if self.transformed_affordance:
+                    X_B_O1 = [x_bo @ X_OA for x_bo in X_B_O1]
+
                 
                 base_frame = np.array(X_BE_follower[0]) if np.allclose(X_B_O1[0], X_B_O1[-1]) else np.eye(4)
                 X_B_OO1 = [self.compute_oriented_affordance_frame(pose, base_frame=base_frame).A for pose in X_B_O1]
@@ -561,6 +571,8 @@ def detect_aruco_markers(dataset_path:str, marker_id:int=3, file_name:str="cup_f
         cap_b.release()
         cap_f.release()
 
+        pdb.set_trace()
+
         with open(os.path.join(dataset_path, "episodes", str(episode), file_name), 'w') as f:
             json.dump(detection_list, f)
 
@@ -580,7 +592,7 @@ def detect_aruco_markers(dataset_path:str, marker_id:int=3, file_name:str="cup_f
 
 if __name__ == "__main__":
 
-    fpath = "/home/krishan/work/2024/datasets/teapot_place_10_demo"
+    fpath = "/home/krishan/work/2024/datasets/teaspoon_stir_10_demo"
     dataset_utils = DatasetUtils(fpath)
     detect_aruco_markers(fpath, marker_id=3, file_name="affordance_frames.json", dynamic_object=False)
     # detect_aruco_markers(fpath, marker_id=10, file_name="affordance_frames.json", dynamic_object=False)
