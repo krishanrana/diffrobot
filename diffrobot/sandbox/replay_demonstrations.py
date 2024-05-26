@@ -11,8 +11,8 @@ from diffrobot.diffusion_policy.utils.dataset_utils import DatasetUtils
 
 
 # dataset_path = "/home/krishan/work/2024/datasets/cup_10_demos_again"
-dataset_path = "/home/krishan/work/2024/datasets/teapot_place_10_demo"
-dutils = DatasetUtils(dataset_path)
+dataset_path = "/home/krishan/work/2024/datasets/teaspoon_stir_10_demo"
+dutils = DatasetUtils(dataset_path, transformed_affordance=True)
 rlds, stats = dutils.create_rlds()
 env = RobotViz()
 
@@ -26,6 +26,9 @@ with open(camera_calibration_path, "r") as f:
 
 for episode in rlds:
     ep_data = rlds[episode]
+
+    if episode % 10 != 0:
+        continue
 
     for phase in ep_data:
         phase_data = ep_data[phase]
@@ -66,7 +69,7 @@ for episode in rlds:
 
             # env.object_pose.T = sm.SE3(EE_pose, check=False).norm()
             env.policy_pose.T = sm.SE3(X_BE, check=False).norm()
-            env.cup_handle.T = sm.SE3(X_B_OO1, check=False).norm()
+            env.cup_handle.T = sm.SE3(X_B_O1, check=False).norm()
             env.step(phase_data['gello_q'][idx])
             # env.step(phase_data['gello_q'][idx], robot_q_recovered[0])
             time.sleep(0.1)
