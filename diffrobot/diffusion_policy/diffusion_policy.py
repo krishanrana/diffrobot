@@ -225,6 +225,7 @@ class DiffusionPolicy():
         if mode == 'infer':
             self.load_weights(saved_run_name)
             stats_path = os.path.join("/mnt/droplet/", saved_run_name, 'stats.npy')
+            # stats_path = os.path.join("../diffusion_policy/runs/", saved_run_name, 'stats.npy')
             self.stats = np.load(stats_path, allow_pickle=True).item()
             if policy_type == 'vision':
                 self.transform = Compose([Resize((self.params.im_width, self.params.im_height)), FixedCropTransform(10, 10, 288, 216)])
@@ -240,6 +241,15 @@ class DiffusionPolicy():
         else:
             fpath_ema = os.path.join("/mnt/droplet/", saved_run_name, "saved_weights", 'ema.ckpt')
             fpath_nets = os.path.join("/mnt/droplet/", saved_run_name, "saved_weights", 'net.ckpt')
+
+        # if load_best:
+        #     fpath_ema = os.path.join("../diffusion_policy/runs/", saved_run_name, "saved_weights", 'best', 'ema.ckpt')
+        #     fpath_nets = os.path.join("../diffusion_policy/runs/", saved_run_name, "saved_weights", 'best', 'net.ckpt')
+        # else:
+        #     fpath_ema = os.path.join("/runs/", saved_run_name, "saved_weights", 'ema.ckpt')
+        #     fpath_nets = os.path.join("/runs/", saved_run_name, "saved_weights", 'net.ckpt')
+
+            
 
         state_dict_nets = torch.load(fpath_nets, map_location='cuda')
         self.nets.load_state_dict(state_dict_nets)

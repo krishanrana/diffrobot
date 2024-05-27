@@ -9,12 +9,24 @@ from scipy.spatial.transform import Rotation as R
 
 from diffrobot.diffusion_policy.utils.dataset_utils import DatasetUtils
 
+from diffrobot.diffusion_policy.diffusion_policy import DiffusionPolicy
+
+import collections
+
 
 # dataset_path = "/home/krishan/work/2024/datasets/cup_10_demos_again"
 dataset_path = "/home/krishan/work/2024/datasets/teapot_place_10_saturday"
 dutils = DatasetUtils(dataset_path, transformed_affordance=False, transformed_ee=True)
-rlds, stats = dutils.create_rlds()
+rlds, stats = dutils.create_rlds(num_noisy_variations=0)
 env = RobotViz()
+
+# policy_name = 'twilight-dawn-164_state'
+# policy = DiffusionPolicy(mode='infer',
+#                         policy_type='state',
+#                         config_file=f'../diffusion_policy/runs/{policy_name}/config_state_pretrain',
+#                         finetune=False,
+#                         saved_run_name=policy_name)
+
 
 # read camera calibration json
 camera_calibration_path = os.path.join(dataset_path, "transforms", "hand_eye.json")
@@ -22,20 +34,35 @@ with open(camera_calibration_path, "r") as f:
     data = json.load(f)
     X_EC_b = np.array(data["X_EC_b"])
     X_EC_f = np.array(data["X_EC_f"])
-    
+
+
+
+X_OA_ee_path = os.path.join(dataset_path, "transforms", "ee_transform.json")
+X_OA_ee = json.load(open(X_OA_ee_path, "r"))['X_OA']
+
+
+
+
 
 for episode in rlds:
     ep_data = rlds[episode]
 
-    if episode % 10 != 0:
-        continue
+    # if episode % 10 != 0:
+    #     continue
+
+    X_B_O2_path = os.path.join(dataset_path, "episodes", str(episode), "secondary_affordance_frames.json")
+    secondary_object_data = json.load(open(X_B_O2_path, "r"))
+
+
+    # obs_deque = collections.deque(maxlen=3)
+
+    X_AE = None
 
     for phase in ep_data:
         phase_data = ep_data[phase]
         len_phase = len(phase_data['X_BE_follower'])
 
         for idx in range(len_phase):
-
             # if idx == 1:
             #     pdb.set_trace()
 
@@ -46,30 +73,43 @@ for episode in rlds:
             X_BE_leader = np.array(phase_data['X_BE_leader'][idx])
             X_B_O1 = np.array(phase_data['X_B_O1'][idx])
             X_B_OO1 = np.array(phase_data['X_B_OO1'][idx])
+            q = phase_data['gello_q'][idx]
 
-            # X_B_O2 = np.array(phase_data['X_B_O2'][idx])
-            # X_B_OO2 = np.array(phase_data['X_B_OO2'][idx])
+            X_BE_gello = env.robot.fkine(np.array(q), "panda_link8") * env.X_FE
+
+
+            # recover X_BE
+            X_OA = X_OA_ee
+            X_B_O2 = np.array(secondary_object_data[idx]['X_BO'])
+            X_BA = X_B_O2 @ X_OA
+            if X_AE is None:
+                X_AE = np.linalg.inv(X_BA) @ X_BE_gello.A
+            X_BE_recovered = X_BE_leader @ X_AE
+
+
+            # obs = {"X_BE": X_BE, 
+            # "X_BO": X_B_O1,
+            # "X_B_OO": sm.SE3(X_B_OO1, check=False).norm(),
+            # "X_OO_O": np.array(phase_data['X_OO1_O1'][idx]), 
+            # "gripper_state": np.array(phase_data['gripper_state'][idx]),
+            # "progress": np.array(phase_data['progress'][idx]),
+            # "phase": np.array(phase_data['phase'][idx]),}
+
+            # obs_deque.append(obs)
+
+            # if len(obs_deque) < 3:
+            #     continue
+
+            # out = policy.infer_action(obs_deque)
+            # X_BE_policy = out['action'][0]
+
+            
+            
 
             print('Progress: ', phase_data['progress'][idx]*100, '%')
-
-            # get robot q from X_BE
-            EE_pose = env.robot.fkine(phase_data['robot_q'][idx], "panda_link8") * env.X_FE
-
-            # add random noise to EE_pose position
-            noise = np.random.normal(0, 0.01, 3)
-            EE_pose.A[:3,3] += noise
-            # add random noise to EE_pose orientation
-            r = R.from_matrix(EE_pose.A[:3,:3])
-            noise = np.random.normal(0, 0.02, 3)
-            r = r * R.from_euler('xyz', noise, degrees=False)
-            EE_pose.A[:3,:3] = r.as_matrix()
-            # get robot_q from EE_pose
-            robot_q_recovered = env.robot.ik_LM(EE_pose, q0=phase_data['robot_q'][idx])
-
-
-            # env.object_pose.T = sm.SE3(EE_pose, check=False).norm()
-            env.policy_pose.T = sm.SE3(X_BE, check=False).norm()
-            env.cup_handle.T = sm.SE3(X_B_O1, check=False).norm()
+            # env.object_pose.T = sm.SE3(X_BA, check=False).norm()
+            env.policy_pose.T = sm.SE3(X_B_OO1, check=False).norm()
+            env.cup_handle.T = sm.SE3(X_BE, check=False).norm()
             env.step(phase_data['gello_q'][idx])
             # env.step(phase_data['gello_q'][idx], robot_q_recovered[0])
             time.sleep(0.1)
