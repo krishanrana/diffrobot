@@ -11,8 +11,8 @@ from diffrobot.diffusion_policy.utils.dataset_utils import DatasetUtils
 
 
 # dataset_path = "/home/krishan/work/2024/datasets/cup_10_demos_again"
-dataset_path = "/home/krishan/work/2024/datasets/teaspoon_stir_10_demo"
-dutils = DatasetUtils(dataset_path, transformed_affordance=True)
+dataset_path = "/home/krishan/work/2024/datasets/teapot_place_10_saturday"
+dutils = DatasetUtils(dataset_path, transformed_affordance=False, transformed_ee=True)
 rlds, stats = dutils.create_rlds()
 env = RobotViz()
 
