@@ -112,6 +112,7 @@ class DatasetUtils:
             X_OA = json.load(open(X_OA_path, "r"))['X_OA']
 
         if self.transformed_ee:
+            print('Using transformed ee frame')
             X_OA_ee_path = os.path.join(self.dataset_path, "transforms", "ee_transform.json")
             X_OA_ee = json.load(open(X_OA_ee_path, "r"))['X_OA']
 
@@ -147,10 +148,10 @@ class DatasetUtils:
                 X_BE_leader = [(self.robot.fkine(np.array(q), "panda_link8") * self.X_FE).A for q in phase_data['gello_q']]
 
                 if self.transformed_ee:
+                    # pass
                     X_EO = np.linalg.inv(X_BE_follower[0]) @ df_secondary_object['X_BO'][0]
                     X_EA = X_EO @ X_OA_ee
                     X_BE_follower = [x_be @ X_EA for x_be in X_BE_follower]
-                    X_BE_leader = [x_be @ X_EA for x_be in X_BE_leader]
                     
 
                 X_B_O1 = df_object[df_object['frame_id'].isin(phase_data['idx'])]
@@ -184,6 +185,7 @@ class DatasetUtils:
                     'gripper_action': phase_data['gripper_action'].tolist(),
                     'joint_torques': phase_data['joint_torques'].tolist(),
                     'ee_forces': phase_data['ee_forces'].tolist(),
+                    'X_OO1_O1': X_OO1_O1,
                     'X_B_O1': X_B_O1,
                     'X_B_OO1': X_B_OO1,
                     'progress': progress,
