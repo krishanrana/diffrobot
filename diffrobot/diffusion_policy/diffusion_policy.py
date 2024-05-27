@@ -47,10 +47,14 @@ class DiffusionPolicy():
             self.precision = torch.float16
 
         if self.mode == 'train':
-            self.dutils = DatasetUtils(self.params.dataset_path, transformed_affordance=self.params.transformed_affordance)
+            self.dutils = DatasetUtils(self.params.dataset_path, 
+                                       transformed_affordance=self.params.transformed_affordance,
+                                       transformed_ee=self.params.transformed_ee)
         elif self.mode == 'infer':
             self.params.dataset_path = "/home/bumblebee/work/diffrobot/diffrobot/diffusion_policy/runs/"
-            self.dutils = DatasetUtils(self.params.dataset_path + saved_run_name, transformed_affordance=self.params.transformed_affordance)
+            self.dutils = DatasetUtils(self.params.dataset_path + saved_run_name, 
+                                       transformed_affordance=self.params.transformed_affordance,
+                                       transformed_ee=self.params.transformed_ee)
 
         print('Using {} action frame'.format(self.params.action_frame))
 

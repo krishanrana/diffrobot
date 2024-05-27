@@ -1,9 +1,10 @@
 import torch
 
-dataset_path = "/home/krishan/work/2024/datasets/teaspoon_stir_10_demo" # TODO: DID YOU UPDATE THE SYMETRIC FLAG BELOW?
+dataset_path = "/home/krishan/work/2024/datasets/teapot_place_10_saturday" # TODO: DID YOU UPDATE THE SYMETRIC FLAG BELOW?
 
 symmetric = True
-transformed_affordance = True
+transformed_affordance = False
+transformed_ee = True
 
 down_dims = [128,256,256]
 diffusion_step_embed_dim = 128

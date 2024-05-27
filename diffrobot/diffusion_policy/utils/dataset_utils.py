@@ -83,7 +83,7 @@ def compute_oriented_affordance_frame(transform_matrix, base_frame=np.eye(4)):
 
 
 class DatasetUtils:
-    def __init__(self, dataset_path=None, transformed_affordance=False):
+    def __init__(self, dataset_path=None, transformed_affordance=False, transformed_ee=False):
         self.dataset_path = dataset_path
         self.robot = rtb.models.Panda()
         self.X_FE = np.array([[0.70710678, 0.70710678, 0.0, 0.0], 
@@ -92,6 +92,7 @@ class DatasetUtils:
                             [0.0, 0.0, 0.0, 1.0]])
         self.X_FE = sm.SE3(self.X_FE, check=False).norm()
         self.transformed_affordance = transformed_affordance
+        self.transformed_ee = transformed_ee
         # self.affordance_transforms = json.load(open(os.path.join(self.dataset_path, "transforms", "to_afford.json"), "r"))  
 
     def create_rlds(self, num_noisy_variations=5):
@@ -110,9 +111,17 @@ class DatasetUtils:
             X_OA_path = os.path.join(self.dataset_path, "transforms", "affordance_transform.json")
             X_OA = json.load(open(X_OA_path, "r"))['X_OA']
 
+        if self.transformed_ee:
+            X_OA_ee_path = os.path.join(self.dataset_path, "transforms", "ee_transform.json")
+            X_OA_ee = json.load(open(X_OA_ee_path, "r"))['X_OA']
+
         for episode_index, episode in enumerate(episodes):
             episode_path = os.path.join(self.dataset_path, "episodes", episode, "state.json")
             X_B_O1_path = os.path.join(self.dataset_path, "episodes", episode, "affordance_frames.json")
+            if self.transformed_ee:
+                X_B_O2_path = os.path.join(self.dataset_path, "episodes", episode, "secondary_affordance_frames.json")
+                secondary_object_data = json.load(open(X_B_O2_path, "r"))
+                df_secondary_object = pd.DataFrame(secondary_object_data)
 
             with open(episode_path, "r") as f:
                 data = json.load(f)
@@ -136,6 +145,13 @@ class DatasetUtils:
 
                 X_BE_follower = phase_data['X_BE'].tolist()
                 X_BE_leader = [(self.robot.fkine(np.array(q), "panda_link8") * self.X_FE).A for q in phase_data['gello_q']]
+
+                if self.transformed_ee:
+                    X_EO = np.linalg.inv(X_BE_follower[0]) @ df_secondary_object['X_BO'][0]
+                    X_EA = X_EO @ X_OA_ee
+                    X_BE_follower = [x_be @ X_EA for x_be in X_BE_follower]
+                    X_BE_leader = [x_be @ X_EA for x_be in X_BE_leader]
+                    
 
                 X_B_O1 = df_object[df_object['frame_id'].isin(phase_data['idx'])]
                 X_B_O1 = [self.adjust_orientation_to_z_up(np.array(pose)) for pose in X_B_O1['X_BO']]
@@ -490,7 +506,6 @@ def detect_aruco_markers(dataset_path:str, marker_id:int=3, file_name:str="cup_f
 
         detection_list = []
         marker_info = None 
-        saved_first_frame = False
 
         X_BO = None
 
@@ -571,7 +586,19 @@ def detect_aruco_markers(dataset_path:str, marker_id:int=3, file_name:str="cup_f
         cap_b.release()
         cap_f.release()
 
-        pdb.set_trace()
+        if dynamic_object:
+            # fill all the null frames with the first non null detected frame
+            # loop through detection list and fill the null frames with the first non null frame
+            for i, detection in enumerate(detection_list):
+                if detection['X_BO'] is not None:
+                    first_frame = detection['X_BO']
+                    break
+
+            # fill the null frames with the first frame
+            for i, detection in enumerate(detection_list):
+                if detection['X_BO'] is None:
+                    detection_list[i]['X_BO'] = first_frame
+
 
         with open(os.path.join(dataset_path, "episodes", str(episode), file_name), 'w') as f:
             json.dump(detection_list, f)
@@ -592,13 +619,18 @@ def detect_aruco_markers(dataset_path:str, marker_id:int=3, file_name:str="cup_f
 
 if __name__ == "__main__":
 
-    fpath = "/home/krishan/work/2024/datasets/teaspoon_stir_10_demo"
+    fpath = "/home/krishan/work/2024/datasets/teapot_place_10_saturday"
     dataset_utils = DatasetUtils(fpath)
-    detect_aruco_markers(fpath, marker_id=3, file_name="affordance_frames.json", dynamic_object=False)
+    # detect_aruco_markers(fpath, marker_id=4, file_name="secondary_affordance_frames.json", dynamic_object=True)
+    # detect_aruco_markers(fpath, marker_id=4, file_name="affordance_frames.json", dynamic_object=True)
     # detect_aruco_markers(fpath, marker_id=10, file_name="affordance_frames.json", dynamic_object=False)
     # detect_aruco_markers(fpath, marker_id=3, file_name="relative_frame.json", dynamic_object=False)
     rlds = dataset_utils.create_rlds()
 
 
 
-  
+
+# 'cup': ManipObject(name='cup', aruco_key=3),
+# 'saucer': ManipObject(name='saucer', aruco_key=10),
+# 'teapot': ManipObject(name='teapot', aruco_key=4),
+# 'spoon': ManipObject(name='spoon', aruco_key=8),
