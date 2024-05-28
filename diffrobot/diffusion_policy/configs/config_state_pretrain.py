@@ -1,10 +1,6 @@
 import torch
 
-<<<<<<< HEAD
 dataset_path = "/home/krishan/work/2024/datasets/saucer_10_demos_FINAL" # TODO: DID YOU UPDATE THE SYMETRIC FLAG BELOW?
-=======
-dataset_path = "/home/krishan/work/2024/datasets/teapot_place_10_saturday" # TODO: DID YOU UPDATE THE SYMETRIC FLAG BELOW?
->>>>>>> origin/main
 
 symmetric = True
 transformed_affordance = False
