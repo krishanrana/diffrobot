@@ -66,7 +66,7 @@ class Task:
         self.affordance_transform = None
         self.transform_ee_frame = transform_ee_frame
         self.ee_transform = None
-        self.X_AE = None
+        self.X_EA = None
 
         if self.transform_affordance_frame:
             run_path = f'/mnt/droplet/{self.policy_name}/transforms/affordance_transform.json'
@@ -105,10 +105,11 @@ class CupRotate(Task):
     
 
 class PlaceSaucer(Task):
-    def __init__(self, saucer:ManipObject, **kwargs):
+    def __init__(self, saucer:ManipObject, cup:ManipObject, **kwargs):
         super().__init__('place_saucer', **kwargs)
         self.objects = {
             'saucer': saucer,
+            'cup': cup,
         }
 
 
@@ -201,50 +202,53 @@ class MakeTeaTask:
             'spoon': ManipObject(name='spoon', aruco_key=8),
         }       
         self.sub_tasks : list[Task] = [
-            # CupRotate(
-            #     policy_name= 'sleek-dew-119_state',#'robust-plant-142_state',
-            #     oriented_frame_reference='base', 
-            #     progress_threshold=0.98,
-            #     affordance_frame='cup', 
-            #     cup=self.objects['cup']),
-            # PlaceSaucer(
-            #     policy_name='splendid-thunder-156_state',
-            #     oriented_frame_reference='cup', 
-            #     progress_threshold=0.88,
-            #     affordance_frame='saucer', 
-            #     saucer=self.objects['saucer']),
-            TeapotRotate(
-                policy_name='dry-sky-157_state',
+            CupRotate(
+                policy_name= 'grateful-lion-168_state',#'robust-plant-142_state',
                 oriented_frame_reference='base', 
-                affordance_frame='teapot',
-                progress_threshold=0.94, 
-                cup=self.objects['cup'], 
-                teapot=self.objects['teapot']),
-            TeapotPour(
-                policy_name='dainty-bird-158_state',
-                oriented_frame_reference='teapot',
-                progress_threshold=0.86, 
+                progress_threshold=0.92,
                 affordance_frame='cup', 
                 cup=self.objects['cup']),
-            TeapotPlace(
-                oriented_frame_reference='teapot',
-                secondary_affordance_frame='teapot',
-                policy_name='twilight-dawn-164_state',
-                progress_threshold=0.78,
-                affordance_frame='cup', 
-                cup=self.objects['cup'],
-                teapot=self.objects['teapot'],
-                transform_ee_frame=True),
+            PlaceSaucer(
+                policy_name='colorful-armadillo-172_state',
+                oriented_frame_reference='cup', 
+                progress_threshold=0.86,
+                affordance_frame='saucer',
+                secondary_affordance_frame='cup',
+                transform_ee_frame=True, 
+                saucer=self.objects['saucer'],
+                cup=self.objects['cup']),
+            # TeapotRotate(
+            #     policy_name='dry-sky-157_state',
+            #     oriented_frame_reference='base', 
+            #     affordance_frame='teapot',
+            #     progress_threshold=0.94, 
+            #     cup=self.objects['cup'], 
+            #     teapot=self.objects['teapot']),
+            # TeapotPour(
+            #     policy_name='dainty-bird-158_state',
+            #     oriented_frame_reference='teapot',
+            #     progress_threshold=0.88, 
+            #     affordance_frame='cup', 
+            #     cup=self.objects['cup']),
+            # TeapotPlace(
+            #     oriented_frame_reference='teapot',
+            #     secondary_affordance_frame='teapot',
+            #     policy_name= 'pious-water-167_state', #'twilight-dawn-164_state',
+            #     progress_threshold=0.89,
+            #     affordance_frame='cup', 
+            #     cup=self.objects['cup'],
+            #     teapot=self.objects['teapot'],
+            #     transform_ee_frame=True),
             # PickSpoon(
             #     oriented_frame_reference='base', 
-            #     policy_name='super-snow-160_state',
+            #     policy_name='lively-haze-162_state',
             #     progress_threshold=0.92,
             #     affordance_frame='spoon', 
             #     spoon=self.objects['spoon']),
             # StirSpoon(
             #     oriented_frame_reference='cup',
-            #     policy_name='easy-sponge-161_state',
-            #     progress_threshold=0.95,
+            #     policy_name='usual-snow-165_state',
+            #     progress_threshold=0.89,
             #     affordance_frame='cup', 
             #     cup=self.objects['cup'],
             #     transform_affordance_frame=True),
@@ -325,11 +329,17 @@ class MakeTeaTask:
         self.detect_objects()
 
         if self.current_task().transform_ee_frame:
-            temp_X_BO = task.current_secondary_affordance_frame_pose()
-            temp_X_OA = self.current_task().ee_transform
-            temp_X_BA = temp_X_BO @ temp_X_OA
-            task.current_task().X_AE = np.linalg.inv(temp_X_BA) @ X_BE
-            X_BE = temp_X_BA
+            X_EA = task.current_task().X_EA
+            if X_EA is None:
+                temp_X_BO = task.current_secondary_affordance_frame_pose()
+                temp_X_BO = adjust_orientation_to_z_up(temp_X_BO)
+                temp_X_OA = self.current_task().ee_transform
+                temp_X_EO = np.linalg.inv(X_BE) @ temp_X_BO
+                temp_X_EA = temp_X_EO @ temp_X_OA
+                task.current_task().X_EA = temp_X_EA
+            # X_BE = temp_X_BA
+            X_EA = task.current_task().X_EA
+            X_BE = X_BE @ X_EA
 
         X_BO = task.current_affordance_frame_pose()
         X_BO = adjust_orientation_to_z_up(X_BO) 
@@ -442,19 +452,21 @@ class RobotInferenceController:
             action_gripper = out['action_gripper']
             progress = out['progress']
 
+            X_BE = self.obs_deque[-1]["X_BE"]
+
 
             for i in range(len(action)):
                 current_task.set_progress(progress[i])
 
                 if task.current_task().transform_ee_frame:
-                    #action[i] = action[i] @ task.current_task().X_AE
                     pass
+
 
                 trans, orien = matrix_to_pos_orn(action[i])
 
-                # task is teapot place then do somethin
-                if task.current_task().name != 'teapot_place':
-                    motion.set_target(to_affine(trans, orien))
+                # # task is teapot place then do somethin
+                #if task.current_task().name != 'teapot_place':
+                motion.set_target(to_affine(trans, orien))
 
                 g = action_gripper[i]
 
@@ -481,8 +493,13 @@ class RobotInferenceController:
                     break
 
                 robot_state = motion.get_robot_state()
-                self.robot_visualiser.ee_pose.T = sm.SE3((np.array(robot_state.O_T_EE)).reshape(4,4).T, check=False).norm()	
-                self.robot_visualiser.policy_pose.T = action[i] 
+                # X_BE = np.array(robot_state.O_T_EE).reshape(4,4).T
+                # X_EA = task.current_task().X_EA
+                # self.robot_visualiser.ee_pose.T = sm.SE3(X_BE, check=False).norm()	
+                # if X_EA is not None:
+                    # self.robot_visualiser.ee_pose.T = X_BE 
+                self.robot_visualiser.object_pose.T = X_BE
+                # self.robot_visualiser.policy_pose.T = action[i] 
                 # visualize the X_B_OO from deques
                 # self.robot_visualiser.object_pose.T = self.obs_deque[-1]["X_B_OO"]
                 # self.robot_visualiser.orientation_frame.T = self.obs_deque[-2]["X_BO"]
