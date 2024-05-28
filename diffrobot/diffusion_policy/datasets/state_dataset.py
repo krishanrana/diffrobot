@@ -18,14 +18,21 @@ class DiffusionStateDataset(torch.utils.data.Dataset):
                  transform,
                  freq_divisor: int,
                  symmetric: bool,
+<<<<<<< HEAD
                  transformed_affordance: bool,
                  transformed_ee: bool,
+=======
+>>>>>>> origin/main
                  action_frame: str):
 
         self.action_frame = action_frame
         self.dataset_path = dataset_path
         self.dutils = DatasetUtils(dataset_path)
+<<<<<<< HEAD
         self.all_data, self.stats = self.dutils.create_rlds(transformed_affordance=transformed_affordance, transformed_ee=transformed_ee)
+=======
+        self.all_data, self.stats = self.dutils.create_rlds()
+>>>>>>> origin/main
         self.stage = stage
         self.symmetric = symmetric
 
