@@ -15,9 +15,9 @@ import collections
 
 
 # dataset_path = "/home/krishan/work/2024/datasets/cup_10_demos_again"
-dataset_path = "/home/krishan/work/2024/datasets/teapot_place_10_saturday"
-dutils = DatasetUtils(dataset_path, transformed_affordance=False, transformed_ee=True)
-rlds, stats = dutils.create_rlds(num_noisy_variations=0)
+dataset_path = "/home/krishan/work/2024/datasets/saucer_10_demos_FINAL"
+dutils = DatasetUtils(dataset_path)
+rlds, stats = dutils.create_rlds(num_noisy_variations=0, transformed_affordance=False, transformed_ee=True)
 env = RobotViz()
 
 # policy_name = 'twilight-dawn-164_state'
@@ -84,7 +84,7 @@ for episode in rlds:
             X_BA = X_B_O2 @ X_OA
             if X_AE is None:
                 X_AE = np.linalg.inv(X_BA) @ X_BE_gello.A
-            X_BE_recovered = X_BE_leader @ X_AE
+            X_BE_recovered = X_BE @ X_AE
 
 
             # obs = {"X_BE": X_BE, 
@@ -108,7 +108,7 @@ for episode in rlds:
 
             print('Progress: ', phase_data['progress'][idx]*100, '%')
             # env.object_pose.T = sm.SE3(X_BA, check=False).norm()
-            env.policy_pose.T = sm.SE3(X_B_OO1, check=False).norm()
+            env.policy_pose.T = sm.SE3(X_BE_leader, check=False).norm()
             env.cup_handle.T = sm.SE3(X_BE, check=False).norm()
             env.step(phase_data['gello_q'][idx])
             # env.step(phase_data['gello_q'][idx], robot_q_recovered[0])
