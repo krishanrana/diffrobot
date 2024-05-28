@@ -83,7 +83,7 @@ def compute_oriented_affordance_frame(transform_matrix, base_frame=np.eye(4)):
 
 
 class DatasetUtils:
-    def __init__(self, dataset_path=None, transformed_affordance=False, transformed_ee=False):
+    def __init__(self, dataset_path=None):
         self.dataset_path = dataset_path
         self.robot = rtb.models.Panda()
         self.X_FE = np.array([[0.70710678, 0.70710678, 0.0, 0.0], 
@@ -91,11 +91,9 @@ class DatasetUtils:
                             [0.0, 0.0, 1.0, 0.2], 
                             [0.0, 0.0, 0.0, 1.0]])
         self.X_FE = sm.SE3(self.X_FE, check=False).norm()
-        self.transformed_affordance = transformed_affordance
-        self.transformed_ee = transformed_ee
         # self.affordance_transforms = json.load(open(os.path.join(self.dataset_path, "transforms", "to_afford.json"), "r"))  
 
-    def create_rlds(self, num_noisy_variations=5):
+    def create_rlds(self, num_noisy_variations=5, transformed_affordance=False, transformed_ee=False):
         def add_noise(data, noise_level):
             return data + np.random.normal(scale=noise_level, size=data.shape)
 
@@ -107,11 +105,11 @@ class DatasetUtils:
         episodes = sorted(os.listdir(os.path.join(self.dataset_path, "episodes")), key=lambda x: int(x))
         original_num_episodes = len(episodes)
 
-        if self.transformed_affordance:
+        if transformed_affordance:
             X_OA_path = os.path.join(self.dataset_path, "transforms", "affordance_transform.json")
             X_OA = json.load(open(X_OA_path, "r"))['X_OA']
 
-        if self.transformed_ee:
+        if transformed_ee:
             print('Using transformed ee frame')
             X_OA_ee_path = os.path.join(self.dataset_path, "transforms", "ee_transform.json")
             X_OA_ee = json.load(open(X_OA_ee_path, "r"))['X_OA']
@@ -119,7 +117,7 @@ class DatasetUtils:
         for episode_index, episode in enumerate(episodes):
             episode_path = os.path.join(self.dataset_path, "episodes", episode, "state.json")
             X_B_O1_path = os.path.join(self.dataset_path, "episodes", episode, "affordance_frames.json")
-            if self.transformed_ee:
+            if transformed_ee:
                 X_B_O2_path = os.path.join(self.dataset_path, "episodes", episode, "secondary_affordance_frames.json")
                 secondary_object_data = json.load(open(X_B_O2_path, "r"))
                 df_secondary_object = pd.DataFrame(secondary_object_data)
@@ -147,10 +145,12 @@ class DatasetUtils:
                 X_BE_follower = phase_data['X_BE'].tolist()
                 X_BE_leader = [(self.robot.fkine(np.array(q), "panda_link8") * self.X_FE).A for q in phase_data['gello_q']]
 
-                if self.transformed_ee:
-                    # pass
-                    X_EO = np.linalg.inv(X_BE_follower[0]) @ df_secondary_object['X_BO'][0]
+                if transformed_ee:
+                    print('Transforming to ee frame')
+                    X_EO = np.linalg.inv(X_BE_follower[0]) @ self.adjust_orientation_to_z_up(np.array(df_secondary_object['X_BO'][0]))
                     X_EA = X_EO @ X_OA_ee
+                    # transform X_BE by X_EA tranlation only
+                    X_EA = sm.SE3(X_EA[:3, 3]).A
                     X_BE_follower = [x_be @ X_EA for x_be in X_BE_follower]
                     
 
@@ -158,7 +158,7 @@ class DatasetUtils:
                 X_B_O1 = [self.adjust_orientation_to_z_up(np.array(pose)) for pose in X_B_O1['X_BO']]
 
                 # TODO: Transform to object-object affordance frame (centre of cup)
-                if self.transformed_affordance:
+                if transformed_affordance:
                     X_B_O1 = [x_bo @ X_OA for x_bo in X_B_O1]
 
                 
@@ -588,6 +588,7 @@ def detect_aruco_markers(dataset_path:str, marker_id:int=3, file_name:str="cup_f
         cap_b.release()
         cap_f.release()
 
+
         if dynamic_object:
             # fill all the null frames with the first non null detected frame
             # loop through detection list and fill the null frames with the first non null frame
@@ -621,10 +622,10 @@ def detect_aruco_markers(dataset_path:str, marker_id:int=3, file_name:str="cup_f
 
 if __name__ == "__main__":
 
-    fpath = "/home/krishan/work/2024/datasets/teapot_place_10_saturday"
+    fpath = "/home/krishan/work/2024/datasets/saucer_10_demos_FINAL"
     dataset_utils = DatasetUtils(fpath)
-    # detect_aruco_markers(fpath, marker_id=4, file_name="secondary_affordance_frames.json", dynamic_object=True)
-    # detect_aruco_markers(fpath, marker_id=4, file_name="affordance_frames.json", dynamic_object=True)
+    detect_aruco_markers(fpath, marker_id=3, file_name="secondary_affordance_frames.json", dynamic_object=True)
+    # detect_aruco_markers(fpath, marker_id=3, file_name="affordance_frames.json", dynamic_object=False)
     # detect_aruco_markers(fpath, marker_id=10, file_name="affordance_frames.json", dynamic_object=False)
     # detect_aruco_markers(fpath, marker_id=3, file_name="relative_frame.json", dynamic_object=False)
     rlds = dataset_utils.create_rlds()
