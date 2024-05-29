@@ -46,9 +46,11 @@ class Task:
                  name, 
                  affordance_frame: str,
                  oriented_frame_reference: str,
+                 secondary_affordance_frame: str = "",
                  policy_name: str = "",
                  progress_threshold: float = 0.98,
-                 transform_affordance_frame: bool = False):
+                 transform_affordance_frame: bool = False,
+                 transform_ee_frame: bool = False):
         
         self.name = name
         self.policy_name = policy_name
@@ -56,11 +58,25 @@ class Task:
         self.max_progress_made = 0.0
         self.progress = 0.0
         self.affordance_frame = affordance_frame
+        self.secondary_affordance_frame = secondary_affordance_frame
         self.oriented_frame_reference = oriented_frame_reference
         self.gripper_allowed_to_move = True
         self.progress_threshold = progress_threshold
         self.transform_affordance_frame = transform_affordance_frame
         self.affordance_transform = None
+        self.transform_ee_frame = transform_ee_frame
+        self.ee_transform = None
+        self.X_EA = None
+
+        if self.transform_affordance_frame:
+            run_path = f'/mnt/droplet/{self.policy_name}/transforms/affordance_transform.json'
+            with open(run_path, 'r') as f:
+                self.affordance_transform = json.load(f)['X_OA']
+        
+        if self.transform_ee_frame:
+            run_path = f'/mnt/droplet/{self.policy_name}/transforms/ee_transform.json'
+            with open(run_path, 'r') as f:
+                self.ee_transform = json.load(f)['X_OA']
     
     def set_progress(self, progress: float):
         self.progress = progress
@@ -89,10 +105,11 @@ class CupRotate(Task):
     
 
 class PlaceSaucer(Task):
-    def __init__(self, saucer:ManipObject, **kwargs):
+    def __init__(self, saucer:ManipObject, cup:ManipObject, **kwargs):
         super().__init__('place_saucer', **kwargs)
         self.objects = {
             'saucer': saucer,
+            'cup': cup,
         }
 
 
@@ -114,10 +131,11 @@ class TeapotPour(Task):
 
 
 class TeapotPlace(Task):
-    def __init__(self, cup: ManipObject, **kwargs):
+    def __init__(self, cup: ManipObject, teapot: ManipObject, **kwargs):
         super().__init__('teapot_place', **kwargs)
         self.objects = {
             'cup': cup,
+            'teapot': teapot
         }
 
 class PickSpoon(Task):
@@ -135,10 +153,7 @@ class StirSpoon(Task):
             'cup': cup,
         }
 
-        if self.transform_affordance_frame:
-            run_path = f'/mnt/droplet/{self.policy_name}/transforms/affordance_transform.json'
-            with open(run_path, 'r') as f:
-                self.affordance_transform = json.load(f)['X_OA']
+        
 
 
 
@@ -187,18 +202,21 @@ class MakeTeaTask:
             'spoon': ManipObject(name='spoon', aruco_key=8),
         }       
         self.sub_tasks : list[Task] = [
-            # CupRotate(
-            #     policy_name= 'sleek-dew-119_state',#'robust-plant-142_state',
-            #     oriented_frame_reference='base', 
-            #     progress_threshold=0.98,
-            #     affordance_frame='cup', 
-            #     cup=self.objects['cup']),
-            # PlaceSaucer(
-            #     policy_name='splendid-thunder-156_state',
-            #     oriented_frame_reference='cup', 
-            #     progress_threshold=0.88,
-            #     affordance_frame='saucer', 
-            #     saucer=self.objects['saucer']),
+            CupRotate(
+                policy_name= 'grateful-lion-168_state',#'robust-plant-142_state',
+                oriented_frame_reference='base', 
+                progress_threshold=0.94,
+                affordance_frame='cup', 
+                cup=self.objects['cup']),
+            PlaceSaucer(
+                policy_name= 'cosmic-universe-169_state', #'hopeful-tree-173_state',
+                oriented_frame_reference='cup', 
+                progress_threshold=0.86,
+                affordance_frame='saucer',
+                secondary_affordance_frame='cup',
+                transform_ee_frame=False, 
+                saucer=self.objects['saucer'],
+                cup=self.objects['cup']),
             TeapotRotate(
                 policy_name='dry-sky-157_state',
                 oriented_frame_reference='base', 
@@ -209,28 +227,31 @@ class MakeTeaTask:
             TeapotPour(
                 policy_name='dainty-bird-158_state',
                 oriented_frame_reference='teapot',
-                progress_threshold=0.90, 
+                progress_threshold=0.87, 
                 affordance_frame='cup', 
                 cup=self.objects['cup']),
             TeapotPlace(
                 oriented_frame_reference='teapot',
-                policy_name='azure-sea-159_state',
+                secondary_affordance_frame='teapot',
+                policy_name=  'twilight-microwave-178_state', #'pious-water-167_state', #'twilight-dawn-164_state',
                 progress_threshold=0.78,
                 affordance_frame='cup', 
-                cup=self.objects['cup']),
-            # PickSpoon(
-            #     oriented_frame_reference='base', 
-            #     policy_name='super-snow-160_state',
-            #     progress_threshold=0.92,
-            #     affordance_frame='spoon', 
-            #     spoon=self.objects['spoon']),
-            # StirSpoon(
-            #     oriented_frame_reference='cup',
-            #     policy_name='easy-sponge-161_state',
-            #     progress_threshold=0.95,
-            #     affordance_frame='cup', 
-            #     cup=self.objects['cup'],
-            #     transform_affordance_frame=True),
+                cup=self.objects['cup'],
+                teapot=self.objects['teapot'],
+                transform_ee_frame=False),
+            PickSpoon(
+                oriented_frame_reference='base', 
+                policy_name='lively-haze-162_state',
+                progress_threshold=0.92,
+                affordance_frame='spoon', 
+                spoon=self.objects['spoon']),
+            StirSpoon(
+                oriented_frame_reference='cup',
+                policy_name='usual-snow-165_state',
+                progress_threshold=0.89,
+                affordance_frame='cup', 
+                cup=self.objects['cup'],
+                transform_affordance_frame=True),
         ]
 
         # FIND LAST POLICY LOADED
@@ -261,6 +282,11 @@ class MakeTeaTask:
     
     def current_affordance_frame_pose(self):
         obj_name = self.current_task().affordance_frame
+        assert obj_name in self.objects, f"Object {obj_name} not found in objects"
+        return self.objects[obj_name].X_BO_last_seen
+    
+    def current_secondary_affordance_frame_pose(self):
+        obj_name = self.current_task().secondary_affordance_frame
         assert obj_name in self.objects, f"Object {obj_name} not found in objects"
         return self.objects[obj_name].X_BO_last_seen
     
@@ -302,6 +328,20 @@ class MakeTeaTask:
         X_BE = np.array(s.O_T_EE).reshape(4,4).T
         self.detect_objects()
 
+        if self.current_task().transform_ee_frame:
+            X_EA = task.current_task().X_EA
+            if X_EA is None:
+                temp_X_BO = task.current_secondary_affordance_frame_pose()
+                temp_X_BO = adjust_orientation_to_z_up(temp_X_BO)
+                temp_X_OA = self.current_task().ee_transform
+                temp_X_EO = np.linalg.inv(X_BE) @ temp_X_BO
+                temp_X_EA = temp_X_EO @ temp_X_OA
+                temp_X_EA = sm.SE3(temp_X_EA[:3,3]).A  # extract translation component only
+                task.current_task().X_EA = temp_X_EA
+            # X_BE = temp_X_BA
+            X_EA = task.current_task().X_EA
+            X_BE = X_BE @ X_EA
+
         X_BO = task.current_affordance_frame_pose()
         X_BO = adjust_orientation_to_z_up(X_BO) 
 
@@ -333,7 +373,7 @@ class MakeTeaTask:
         # Once these poses are found, the robot will initiate the policy.
 
         robot = self.robot
-        sweep_angles = np.linspace(-110, 90, 8)
+        sweep_angles = np.linspace(-115, 90, 8)
         for sweep_angle in sweep_angles:
             robot.move_to_joints(np.deg2rad([sweep_angle, 0, 0, -110, 0, 110, 45]))
             self.detect_objects()
@@ -413,10 +453,20 @@ class RobotInferenceController:
             action_gripper = out['action_gripper']
             progress = out['progress']
 
+            X_BE = self.obs_deque[-1]["X_BE"]
+
 
             for i in range(len(action)):
                 current_task.set_progress(progress[i])
+
+                if task.current_task().transform_ee_frame:
+                    pass
+
+
                 trans, orien = matrix_to_pos_orn(action[i])
+
+                # # task is teapot place then do somethin
+                #if task.current_task().name != 'teapot_place':
                 motion.set_target(to_affine(trans, orien))
 
                 g = action_gripper[i]
@@ -444,12 +494,17 @@ class RobotInferenceController:
                     break
 
                 robot_state = motion.get_robot_state()
-                # self.robot_visualiser.ee_pose.T = sm.SE3((np.array(robot_state.O_T_EE)).reshape(4,4).T, check=False).norm()	
+                # X_BE = np.array(robot_state.O_T_EE).reshape(4,4).T
+                # X_EA = task.current_task().X_EA
+                # self.robot_visualiser.ee_pose.T = sm.SE3(X_BE, check=False).norm()	
+                # if X_EA is not None:
+                    # self.robot_visualiser.ee_pose.T = X_BE 
+                self.robot_visualiser.object_pose.T = X_BE
                 # self.robot_visualiser.policy_pose.T = action[i] 
                 # visualize the X_B_OO from deques
                 # self.robot_visualiser.object_pose.T = self.obs_deque[-1]["X_B_OO"]
                 # self.robot_visualiser.orientation_frame.T = self.obs_deque[-2]["X_BO"]
-                # self.robot_visualiser.step(robot_state.q)
+                self.robot_visualiser.step(robot_state.q)
 
                 # # if task is teapot place, check if the teapot is in the cup
                 # if task.current_task().name == 'teapot_place':
