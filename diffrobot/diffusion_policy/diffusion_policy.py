@@ -395,39 +395,45 @@ class DiffusionPolicy():
 
     def process_inference_state(self, obs_deque):
 
-
-        # X_OE = [np.dot(np.linalg.inv(o['X_BO']), o['X_BE']) for o in obs_deque]
-
-        X_BO = obs_deque[0]['X_BO']
         X_B_OO = obs_deque[0]['X_B_OO']
-        
-
         gripper_state = [o['gripper_state'] for o in obs_deque]
-        phase = [o['phase'] for o in obs_deque]
-        progress = [o['progress'] for o in obs_deque]
 
         if self.params.action_frame == 'object_centric':
             ee_pose = [np.dot(np.linalg.inv(X_B_OO), o['X_BE']) for o in obs_deque] # X_OO_E
             # ee_pose = [np.dot(np.linalg.inv(X_BO), o['X_BE']) for o in obs_deque] # X_OE
+            object_pose = [o['X_OO_O'] for o in obs_deque] # object pose in oriented frame
+            
         elif self.params.action_frame == 'global':
             ee_pose = [o['X_BE'] for o in obs_deque]
+            object_pose = [o['X_BO'] for o in obs_deque]
 
         ee_pos = [x[:3,3] for x in ee_pose]
         ee_orien = [matrix_to_rotation_6d(x[:3,:3]) for x in ee_pose]
-
-        object_pose = [o['X_OO_O'] for o in obs_deque] # object pose in oriented frame
+        object_pos =  [x[:3,3] for x in object_pose]
         object_orien = [matrix_to_rotation_6d(x[:3,:3]) for x in object_pose]
 
         # normalize data
-        nee_pos = self.dutils.normalize_data(ee_pos, stats=self.stats['pos_follower'])
-        ngripper_state = self.dutils.normalize_data(gripper_state, stats=self.stats['gripper_state']).reshape(-1, 1)
-        nprogress = self.dutils.normalize_data(progress, stats=self.stats['progress']).reshape(-1, 1)
 
-        if not self.params.symmetric:
-            robot_state = torch.from_numpy(np.concatenate([nee_pos, ee_orien, object_orien, ngripper_state], axis=-1)).to(self.device, dtype=self.precision)
-        else:
-            robot_state = torch.from_numpy(np.concatenate([nee_pos, ee_orien, ngripper_state], axis=-1)).to(self.device, dtype=self.precision)
-        
+        if self.params.action_frame == 'object_centric':
+            nee_pos = self.dutils.normalize_data(ee_pos, stats=self.stats['pos_follower'])
+        elif self.params.action_frame == 'global':
+            nee_pos = self.dutils.normalize_data(ee_pos, stats=self.stats['pos_follower_global'])
+            object_pos = self.dutils.normalize_data(object_pos, stats=self.stats['pos_object_global'])
+
+        ngripper_state = self.dutils.normalize_data(gripper_state, stats=self.stats['gripper_state']).reshape(-1, 1)
+
+
+        if self.params.action_frame == 'object_centric':
+            if not self.params.symmetric:
+                robot_state = torch.from_numpy(np.concatenate([nee_pos, ee_orien, object_orien, ngripper_state], axis=-1)).to(self.device, dtype=self.precision)
+            else:
+                robot_state = torch.from_numpy(np.concatenate([nee_pos, ee_orien, ngripper_state], axis=-1)).to(self.device, dtype=self.precision)
+        elif self.params.action_frame == 'global':
+            if not self.params.symmetric:
+                robot_state = torch.from_numpy(np.concatenate([nee_pos, ee_orien, object_orien, object_pos, ngripper_state], axis=-1)).to(self.device, dtype=self.precision)
+            else:
+                robot_state = torch.from_numpy(np.concatenate([nee_pos, ee_orien, object_pos, ngripper_state], axis=-1)).to(self.device, dtype=self.precision)
+            
         obs_cond = robot_state
         obs_cond = obs_cond.flatten(start_dim=0).unsqueeze(0)
                 
@@ -505,7 +511,12 @@ class DiffusionPolicy():
         action_progress = naction[:,10]
 
         # unnormalize action
-        action_pos = self.dutils.unnormalize_data(action_pos, stats=self.stats['pos_leader'])
+
+        if self.params.action_frame == 'object_centric':
+            action_pos = self.dutils.unnormalize_data(action_pos, stats=self.stats['pos_leader'])
+        elif self.params.action_frame == 'global':
+            action_pos = self.dutils.unnormalize_data(action_pos, stats=self.stats['pos_leader_global'])
+
         action_progress = self.dutils.unnormalize_data(action_progress, stats=self.stats['progress'])
         action_gripper = self.dutils.unnormalize_data(action_gripper, stats=self.stats['gripper_action'])
 
