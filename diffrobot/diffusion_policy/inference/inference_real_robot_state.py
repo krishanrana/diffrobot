@@ -205,53 +205,53 @@ class MakeTeaTask:
             CupRotate(
                 policy_name= 'grateful-lion-168_state',#'robust-plant-142_state',
                 oriented_frame_reference='base', 
-                progress_threshold=0.92,
+                progress_threshold=0.94,
                 affordance_frame='cup', 
                 cup=self.objects['cup']),
             PlaceSaucer(
-                policy_name='colorful-armadillo-172_state',
+                policy_name= 'cosmic-universe-169_state', #'hopeful-tree-173_state',
                 oriented_frame_reference='cup', 
                 progress_threshold=0.86,
                 affordance_frame='saucer',
                 secondary_affordance_frame='cup',
-                transform_ee_frame=True, 
+                transform_ee_frame=False, 
                 saucer=self.objects['saucer'],
                 cup=self.objects['cup']),
-            # TeapotRotate(
-            #     policy_name='dry-sky-157_state',
-            #     oriented_frame_reference='base', 
-            #     affordance_frame='teapot',
-            #     progress_threshold=0.94, 
-            #     cup=self.objects['cup'], 
-            #     teapot=self.objects['teapot']),
-            # TeapotPour(
-            #     policy_name='dainty-bird-158_state',
-            #     oriented_frame_reference='teapot',
-            #     progress_threshold=0.88, 
-            #     affordance_frame='cup', 
-            #     cup=self.objects['cup']),
-            # TeapotPlace(
-            #     oriented_frame_reference='teapot',
-            #     secondary_affordance_frame='teapot',
-            #     policy_name= 'pious-water-167_state', #'twilight-dawn-164_state',
-            #     progress_threshold=0.89,
-            #     affordance_frame='cup', 
-            #     cup=self.objects['cup'],
-            #     teapot=self.objects['teapot'],
-            #     transform_ee_frame=True),
-            # PickSpoon(
-            #     oriented_frame_reference='base', 
-            #     policy_name='lively-haze-162_state',
-            #     progress_threshold=0.92,
-            #     affordance_frame='spoon', 
-            #     spoon=self.objects['spoon']),
-            # StirSpoon(
-            #     oriented_frame_reference='cup',
-            #     policy_name='usual-snow-165_state',
-            #     progress_threshold=0.89,
-            #     affordance_frame='cup', 
-            #     cup=self.objects['cup'],
-            #     transform_affordance_frame=True),
+            TeapotRotate(
+                policy_name='dry-sky-157_state',
+                oriented_frame_reference='base', 
+                affordance_frame='teapot',
+                progress_threshold=0.94, 
+                cup=self.objects['cup'], 
+                teapot=self.objects['teapot']),
+            TeapotPour(
+                policy_name='dainty-bird-158_state',
+                oriented_frame_reference='teapot',
+                progress_threshold=0.87, 
+                affordance_frame='cup', 
+                cup=self.objects['cup']),
+            TeapotPlace(
+                oriented_frame_reference='teapot',
+                secondary_affordance_frame='teapot',
+                policy_name=  'twilight-microwave-178_state', #'pious-water-167_state', #'twilight-dawn-164_state',
+                progress_threshold=0.78,
+                affordance_frame='cup', 
+                cup=self.objects['cup'],
+                teapot=self.objects['teapot'],
+                transform_ee_frame=False),
+            PickSpoon(
+                oriented_frame_reference='base', 
+                policy_name='lively-haze-162_state',
+                progress_threshold=0.92,
+                affordance_frame='spoon', 
+                spoon=self.objects['spoon']),
+            StirSpoon(
+                oriented_frame_reference='cup',
+                policy_name='usual-snow-165_state',
+                progress_threshold=0.89,
+                affordance_frame='cup', 
+                cup=self.objects['cup'],
+                transform_affordance_frame=True),
         ]
 
         # FIND LAST POLICY LOADED
@@ -336,6 +336,7 @@ class MakeTeaTask:
                 temp_X_OA = self.current_task().ee_transform
                 temp_X_EO = np.linalg.inv(X_BE) @ temp_X_BO
                 temp_X_EA = temp_X_EO @ temp_X_OA
+                temp_X_EA = sm.SE3(temp_X_EA[:3,3]).A  # extract translation component only
                 task.current_task().X_EA = temp_X_EA
             # X_BE = temp_X_BA
             X_EA = task.current_task().X_EA
@@ -372,7 +373,7 @@ class MakeTeaTask:
         # Once these poses are found, the robot will initiate the policy.
 
         robot = self.robot
-        sweep_angles = np.linspace(-110, 90, 8)
+        sweep_angles = np.linspace(-115, 90, 8)
         for sweep_angle in sweep_angles:
             robot.move_to_joints(np.deg2rad([sweep_angle, 0, 0, -110, 0, 110, 45]))
             self.detect_objects()
