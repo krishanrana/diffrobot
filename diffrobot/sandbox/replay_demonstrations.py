@@ -15,7 +15,7 @@ import collections
 
 
 # dataset_path = "/home/krishan/work/2024/datasets/cup_10_demos_again"
-dataset_path = "/home/krishan/work/2024/datasets/saucer_10_demos_FINAL"
+dataset_path = "/home/krishan/work/2024/datasets/teapot_place_wednesday_10"
 dutils = DatasetUtils(dataset_path)
 rlds, stats = dutils.create_rlds(num_noisy_variations=0, transformed_affordance=False, transformed_ee=True)
 env = RobotViz()
@@ -108,7 +108,7 @@ for episode in rlds:
 
             print('Progress: ', phase_data['progress'][idx]*100, '%')
             # env.object_pose.T = sm.SE3(X_BA, check=False).norm()
-            env.policy_pose.T = sm.SE3(X_BE_leader, check=False).norm()
+            env.policy_pose.T = sm.SE3(X_BE_gello, check=False).norm()
             env.cup_handle.T = sm.SE3(X_BE, check=False).norm()
             env.step(phase_data['gello_q'][idx])
             # env.step(phase_data['gello_q'][idx], robot_q_recovered[0])

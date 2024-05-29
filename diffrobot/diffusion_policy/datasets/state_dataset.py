@@ -72,25 +72,39 @@ class DiffusionStateDataset(torch.utils.data.Dataset):
         gripper_state = self.all_data[episode][phase]['gripper_state'][start_idx:end_idx:self.freq_divisor].reshape(-1, 1)
         progress = self.all_data[episode][phase]['progress'][start_idx:end_idx:self.freq_divisor].reshape(-1, 1)
 
+        pos_follower_global = self.all_data[episode][phase]['pos_follower_global'][start_idx:end_idx:self.freq_divisor]
+        orien_follower_global = self.all_data[episode][phase]['orien_follower_global'][start_idx:end_idx:self.freq_divisor]
+        orien_object_global = self.all_data[episode][phase]['orien_object_global'][start_idx:end_idx:self.freq_divisor]
+        pos_object_global = self.all_data[episode][phase]['pos_object_global'][start_idx:end_idx:self.freq_divisor]
+
         if self.action_frame == 'ee_centric':
             X_BE_follower = self.all_data[episode][phase]['X_BE_follower'][start_idx:end_idx:self.freq_divisor]
             X_BE1_follower = X_BE_follower[:,0]
             X_E1_E_follower = [np.linalg.inv(X_BE1_follower) @ X_BE for X_BE in X_BE_follower]
 
-        # robot_state = np.concatenate([pos_follower, orien_follower, orien_object, gripper_state, ep_phase], axis=-1)
-        if not self.symmetric:
-            robot_state = np.concatenate([pos_follower, orien_follower, orien_object, gripper_state], axis=-1)
-        else:
-            robot_state = np.concatenate([pos_follower, orien_follower, gripper_state], axis=-1)
-        # robot_state = np.concatenate([pos_follower, orien_follower, gripper_state], axis=-1)
+        if self.action_frame == 'object_centric':
+            if not self.symmetric:
+                robot_state = np.concatenate([pos_follower, orien_follower, orien_object, gripper_state], axis=-1)
+            else:
+                robot_state = np.concatenate([pos_follower, orien_follower, gripper_state], axis=-1)
+
+        if self.action_frame == 'global':
+            robot_state = np.concatenate([pos_follower_global, orien_follower_global, orien_object_global, pos_object_global, gripper_state], axis=-1)
+
 
         # action data
-        pos_leader = self.all_data[episode][phase]['pos_leader'][start_idx:end_idx:self.freq_divisor]
-        orien_leader = self.all_data[episode][phase]['orien_leader'][start_idx:end_idx:self.freq_divisor]
-        gripper_action = self.all_data[episode][phase]['gripper_action'][start_idx:end_idx:self.freq_divisor].reshape(-1, 1)
+        if self.action_frame == 'object_centric':
+            pos_leader = self.all_data[episode][phase]['pos_leader'][start_idx:end_idx:self.freq_divisor]
+            orien_leader = self.all_data[episode][phase]['orien_leader'][start_idx:end_idx:self.freq_divisor]
+            gripper_action = self.all_data[episode][phase]['gripper_action'][start_idx:end_idx:self.freq_divisor].reshape(-1, 1)
+            robot_action = np.concatenate([pos_leader, orien_leader, gripper_action, progress], axis=-1)
 
-        robot_action = np.concatenate([pos_leader, orien_leader, gripper_action, progress], axis=-1)
-        
+        if self.action_frame == 'global':
+            pos_leader_global = self.all_data[episode][phase]['pos_leader_global'][start_idx:end_idx:self.freq_divisor]
+            gripper_action = self.all_data[episode][phase]['gripper_action'][start_idx:end_idx:self.freq_divisor].reshape(-1, 1)
+            orien_leader_global = self.all_data[episode][phase]['orien_leader_global'][start_idx:end_idx:self.freq_divisor]
+            robot_action = np.concatenate([pos_leader_global, orien_leader_global, gripper_action, progress], axis=-1)
+
         return {'state': robot_state,
                 'action': robot_action}
     

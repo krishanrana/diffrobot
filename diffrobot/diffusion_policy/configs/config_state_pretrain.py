@@ -1,18 +1,25 @@
 import torch
 
-dataset_path = "/home/krishan/work/2024/datasets/saucer_10_demos_FINAL" # TODO: DID YOU UPDATE THE SYMETRIC FLAG BELOW?
+dataset_path = "/home/krishan/work/2024/datasets/teapot_place_wednesday_10" # TODO: DID YOU UPDATE THE SYMETRIC FLAG BELOW?
+action_frame = 'object_centric' # 'global' or 'object_centric'
+
+
 
 symmetric = True
 transformed_affordance = False
-transformed_ee = True
+transformed_ee = False
 
 down_dims = [128,256,256]
 diffusion_step_embed_dim = 128
 
-if symmetric:
-    low_dim = 10
-else:   
-    low_dim = 16 #17 #23
+if action_frame == 'object_centric':
+    if symmetric:
+        low_dim = 10
+    else:   
+        low_dim = 16 #17 #23
+elif action_frame == 'global':
+    low_dim = 19
+
 
 tactile_dim = 16
 obs_dim = low_dim 
@@ -36,6 +43,5 @@ num_warmup_steps = 500
 
 freq_divisor = 2
 
-action_frame = 'object_centric' # 'global' or 'object_centric'
 
 

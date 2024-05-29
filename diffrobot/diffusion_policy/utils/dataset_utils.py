@@ -145,10 +145,19 @@ class DatasetUtils:
                 X_BE_follower = phase_data['X_BE'].tolist()
                 X_BE_leader = [(self.robot.fkine(np.array(q), "panda_link8") * self.X_FE).A for q in phase_data['gello_q']]
 
+                # get global pose data
+                pos_follower_global, orien_follower_global = self.extract_robot_pos_orien(X_BE_follower)
+                pos_leader_global, orien_leader_global = self.extract_robot_pos_orien(X_BE_leader)
+
+
                 if transformed_ee:
                     print('Transforming to ee frame')
+                    #X_EO = [np.linalg.inv(x_be_leader) @ self.adjust_orientation_to_z_up(np.array(x_bo)) for x_be_leader, x_bo in zip(X_BE_leader, df_object['X_BO'])]
                     X_EO = np.linalg.inv(X_BE_follower[0]) @ self.adjust_orientation_to_z_up(np.array(df_secondary_object['X_BO'][0]))
+                    
                     X_EA = X_EO @ X_OA_ee
+                    #X_EA = [x_eo @ X_OA_ee for x_eo in X_EO]
+                    
                     # transform X_BE by X_EA tranlation only
                     X_EA = sm.SE3(X_EA[:3, 3]).A
                     X_BE_follower = [x_be @ X_EA for x_be in X_BE_follower]
@@ -156,6 +165,9 @@ class DatasetUtils:
 
                 X_B_O1 = df_object[df_object['frame_id'].isin(phase_data['idx'])]
                 X_B_O1 = [self.adjust_orientation_to_z_up(np.array(pose)) for pose in X_B_O1['X_BO']]
+
+                # get global object data
+                pos_object_global, orien_object_global = self.extract_robot_pos_orien(X_B_O1)
 
                 # TODO: Transform to object-object affordance frame (centre of cup)
                 if transformed_affordance:
@@ -168,13 +180,14 @@ class DatasetUtils:
                 progress = self.linear_progress(len(phase_data))
                 X_OO1_O1 = [np.linalg.inv(x_b_oo1) @ x_bo1 for x_b_oo1, x_bo1 in zip(X_B_OO1, X_B_O1)]
 
-                if phase == 0:     
-                    X_OO_E_follower = [np.linalg.inv(x_b_oo1) @ x_be for x_b_oo1, x_be in zip(X_B_OO1, X_BE_follower)]
-                    X_OO_E_leader = [np.linalg.inv(x_b_oo1) @ x_be for x_b_oo1, x_be in zip(X_B_OO1, X_BE_leader)]
-                    orien_object = [matrix_to_rotation_6d(pose[:3, :3]) for pose in X_OO1_O1]
+                X_OO_E_follower = [np.linalg.inv(x_b_oo1) @ x_be for x_b_oo1, x_be in zip(X_B_OO1, X_BE_follower)]
+                X_OO_E_leader = [np.linalg.inv(x_b_oo1) @ x_be for x_b_oo1, x_be in zip(X_B_OO1, X_BE_leader)]
+                orien_object = [matrix_to_rotation_6d(pose[:3, :3]) for pose in X_OO1_O1]
 
                 pos_follower, orien_follower = self.extract_robot_pos_orien(X_OO_E_follower)
                 pos_leader, orien_leader = self.extract_robot_pos_orien(X_OO_E_leader)
+
+                
 
                 rlds[episode_index][str(int(phase))] = {
                     'X_BE_follower': X_BE_follower,
@@ -196,7 +209,13 @@ class DatasetUtils:
                     'pos_leader': pos_leader,
                     'orien_leader': orien_leader,
                     'orien_object': orien_object,
-                    'phase': phase_data['phase'].to_list()
+                    'phase': phase_data['phase'].to_list(),
+                    'pos_follower_global': pos_follower_global,
+                    'orien_follower_global': orien_follower_global,
+                    'pos_leader_global': pos_leader_global,
+                    'orien_leader_global': orien_leader_global,
+                    'pos_object_global': pos_object_global,
+                    'orien_object_global': orien_object_global
                 }
 
 
@@ -204,6 +223,9 @@ class DatasetUtils:
                 for i in range(num_noisy_variations):
                     pos_follower_noisy = [add_noise(np.array(pos), pos_noise_level) for pos in pos_follower]
                     orien_follower_noisy = [add_noise(np.array(orien), orien_noise_level) for orien in orien_follower]
+
+                    pos_follower_global_noisy = [add_noise(np.array(pos), pos_noise_level) for pos in pos_follower_global]
+                    orien_follower_global_noisy = [add_noise(np.array(orien), orien_noise_level) for orien in orien_follower_global]
 
                     noisy_episode_index = original_num_episodes + episode_index * num_noisy_variations + i
                     rlds[noisy_episode_index] = {}
@@ -226,7 +248,13 @@ class DatasetUtils:
                         'pos_leader': pos_leader,
                         'orien_leader': orien_leader,
                         'orien_object': orien_object,
-                        'phase': phase_data['phase'].to_list()
+                        'phase': phase_data['phase'].to_list(),
+                        'pos_follower_global': pos_follower_global_noisy,
+                        'orien_follower_global': orien_follower_global_noisy,
+                        'pos_leader_global': pos_leader_global,
+                        'orien_leader_global': orien_leader_global,
+                        'pos_object_global': pos_object_global,
+                        'orien_object_global': orien_object_global
                     }
 
         stats = self.get_stats_rlds(rlds)
@@ -254,6 +282,11 @@ class DatasetUtils:
         all_gripper_action = []
         all_progress = []
         all_phase = []
+        
+        all_pos_follower_global = []
+        all_pos_leader_global = []
+        all_pos_object_global = []
+
 
         for episode in rlds:
             ep_data = rlds[episode]
@@ -264,6 +297,10 @@ class DatasetUtils:
                 all_gripper_state.append(phase_data['gripper_state'])
                 all_gripper_action.append(phase_data['gripper_action'])
                 all_progress.append(phase_data['progress'])
+                all_pos_follower_global.append(phase_data['pos_follower_global'])
+                all_pos_leader_global.append(phase_data['pos_leader_global'])
+                all_pos_object_global.append(phase_data['pos_object_global'])
+
                 # all_phase.append(phase_data['phase'])
         
         stats = dict()
@@ -273,6 +310,11 @@ class DatasetUtils:
         stats['gripper_action'] = self.get_data_stats(all_gripper_action)
         stats['progress'] = self.get_data_stats(all_progress)
         # stats['phase'] = self.get_data_stats(all_phase)
+
+        stats['pos_follower_global'] = self.get_data_stats(all_pos_follower_global)
+        stats['pos_leader_global'] = self.get_data_stats(all_pos_leader_global)
+        stats['pos_object_global'] = self.get_data_stats(all_pos_object_global)
+
 
 
         return stats
@@ -288,6 +330,11 @@ class DatasetUtils:
                 phase_data['gripper_state'] = self.normalize_data(phase_data['gripper_state'], stats['gripper_state'])
                 phase_data['gripper_action'] = self.normalize_data(phase_data['gripper_action'], stats['gripper_action'])
                 phase_data['progress'] = self.normalize_data(phase_data['progress'], stats['progress'])
+
+                phase_data['pos_follower_global'] = self.normalize_data(phase_data['pos_follower_global'], stats['pos_follower_global'])
+                phase_data['pos_leader_global'] = self.normalize_data(phase_data['pos_leader_global'], stats['pos_leader_global'])
+                phase_data['pos_object_global'] = self.normalize_data(phase_data['pos_object_global'], stats['pos_object_global'])
+
                 # phase_data['phase'] = self.normalize_data(phase_data['phase'], stats['phase'])
         return rlds
         
@@ -621,9 +668,9 @@ def detect_aruco_markers(dataset_path:str, marker_id:int=3, file_name:str="cup_f
 
 if __name__ == "__main__":
 
-    fpath = "/home/krishan/work/2024/datasets/saucer_10_demos_FINAL"
+    fpath = "/home/krishan/work/2024/datasets/teapot_place_wednesday_10"
     dataset_utils = DatasetUtils(fpath)
-    detect_aruco_markers(fpath, marker_id=3, file_name="secondary_affordance_frames.json", dynamic_object=True)
+    detect_aruco_markers(fpath, marker_id=4, file_name="secondary_affordance_frames.json", dynamic_object=True)
     # detect_aruco_markers(fpath, marker_id=3, file_name="affordance_frames.json", dynamic_object=False)
     # detect_aruco_markers(fpath, marker_id=10, file_name="affordance_frames.json", dynamic_object=False)
     # detect_aruco_markers(fpath, marker_id=3, file_name="relative_frame.json", dynamic_object=False)
