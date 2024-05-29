@@ -79,8 +79,24 @@ class DiffusionStateDataset(torch.utils.data.Dataset):
 
         if self.action_frame == 'ee_centric':
             X_BE_follower = self.all_data[episode][phase]['X_BE_follower'][start_idx:end_idx:self.freq_divisor]
-            X_BE1_follower = X_BE_follower[:,0]
-            X_E1_E_follower = [np.linalg.inv(X_BE1_follower) @ X_BE for X_BE in X_BE_follower]
+            X_BS_follower = np.array(X_BE_follower[0])
+            X_SE_follower = [np.linalg.inv(X_BS_follower) @ x_be for x_be in X_BE_follower]
+
+            X_B_O1 = self.all_data[episode][phase]['X_B_O1'][start_idx:end_idx:self.freq_divisor]
+            X_SO = [np.linalg.inv(X_BS_follower) @ x_bo for x_bo in X_B_O1]
+
+            pos_follower, orien_follower = self.dutils.extract_robot_pos_orien(X_SE_follower)
+            pos_object, orien_object = self.dutils.extract_robot_pos_orien(X_SO)
+
+            # normalize
+            pos_follower = self.dutils.normalize_data(pos_follower, self.stats['ee_centric'])
+            pos_object = self.dutils.normalize_data(pos_object, self.stats['ee_centric'])
+
+            if not self.symmetric:
+                robot_state = np.concatenate([pos_follower, orien_follower, orien_object, pos_object ,gripper_state], axis=-1)
+            else:
+                robot_state = np.concatenate([pos_follower, orien_follower, pos_object, gripper_state], axis=-1)
+
 
         if self.action_frame == 'object_centric':
             if not self.symmetric:
@@ -89,7 +105,10 @@ class DiffusionStateDataset(torch.utils.data.Dataset):
                 robot_state = np.concatenate([pos_follower, orien_follower, gripper_state], axis=-1)
 
         if self.action_frame == 'global':
-            robot_state = np.concatenate([pos_follower_global, orien_follower_global, orien_object_global, pos_object_global, gripper_state], axis=-1)
+            if not self.symmetric:
+                robot_state = np.concatenate([pos_follower_global, orien_follower_global, orien_object_global, pos_object_global, gripper_state], axis=-1)
+            else:
+                robot_state = np.concatenate([pos_follower_global, orien_follower_global, pos_object_global, gripper_state], axis=-1)
 
 
         # action data
@@ -104,6 +123,18 @@ class DiffusionStateDataset(torch.utils.data.Dataset):
             gripper_action = self.all_data[episode][phase]['gripper_action'][start_idx:end_idx:self.freq_divisor].reshape(-1, 1)
             orien_leader_global = self.all_data[episode][phase]['orien_leader_global'][start_idx:end_idx:self.freq_divisor]
             robot_action = np.concatenate([pos_leader_global, orien_leader_global, gripper_action, progress], axis=-1)
+
+        if self.action_frame == 'ee_centric':
+            X_BE_leader = self.all_data[episode][phase]['X_BE_leader'][start_idx:end_idx:self.freq_divisor]
+            X_BS_leader = np.array(X_BE_leader[0])
+            X_SE_leader = [np.linalg.inv(X_BS_leader) @ x_be for x_be in X_BE_leader]
+            pos_leader, orien_leader = self.dutils.extract_robot_pos_orien(X_SE_leader)
+
+            gripper_action = self.all_data[episode][phase]['gripper_action'][start_idx:end_idx:self.freq_divisor].reshape(-1, 1)
+
+            # normalize
+            pos_leader = self.dutils.normalize_data(pos_leader, self.stats['ee_centric'])
+            robot_action = np.concatenate([pos_leader, orien_leader, gripper_action, progress], axis=-1)
 
         return {'state': robot_state,
                 'action': robot_action}

@@ -315,6 +315,10 @@ class DatasetUtils:
         stats['pos_leader_global'] = self.get_data_stats(all_pos_leader_global)
         stats['pos_object_global'] = self.get_data_stats(all_pos_object_global)
 
+        stats['ee_centric'] = {'min': np.array([-1.0]),
+                                'max': np.array([1.0]) }
+        
+
 
 
         return stats
