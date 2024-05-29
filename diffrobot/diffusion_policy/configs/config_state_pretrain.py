@@ -1,11 +1,11 @@
 import torch
 
-dataset_path = "/home/krishan/work/2024/datasets/teapot_place_wednesday_10" # TODO: DID YOU UPDATE THE SYMETRIC FLAG BELOW?
-action_frame = 'object_centric' # 'global' or 'object_centric'
+dataset_path = "/home/krishan/work/2024/datasets/teapot_pour_10_saturday" # TODO: DID YOU UPDATE THE SYMETRIC FLAG BELOW?
+action_frame = 'ee_centric' # 'global' or 'object_centric' or 'ee_centric'
 
 
 
-symmetric = True
+symmetric = False
 transformed_affordance = False
 transformed_ee = False
 
@@ -18,7 +18,15 @@ if action_frame == 'object_centric':
     else:   
         low_dim = 16 #17 #23
 elif action_frame == 'global':
-    low_dim = 19
+    if symmetric:
+        low_dim = 13
+    else:
+        low_dim = 19
+elif action_frame == 'ee_centric':
+    if symmetric:
+        low_dim = 13
+    else:
+        low_dim = 19
 
 
 tactile_dim = 16
@@ -32,7 +40,7 @@ global_cond_dim = (obs_dim*obs_horizon)
 
 num_diffusion_iters = 50
 
-batch_size = 256 #128
+batch_size = 128 #128
 num_workers = 11
 num_epochs = 4500
 
