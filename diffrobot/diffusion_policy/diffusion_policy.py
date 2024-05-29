@@ -407,6 +407,14 @@ class DiffusionPolicy():
             ee_pose = [o['X_BE'] for o in obs_deque]
             object_pose = [o['X_BO'] for o in obs_deque]
 
+
+        elif self.params.action_frame == 'ee_centric':
+            X_BE = [o['X_BE'] for o in obs_deque]
+            X_BO = [o['X_BO'] for o in obs_deque]
+            X_BS = np.array(X_BE[0])
+            ee_pose = [np.linalg.inv(X_BS) @ x_be for x_be in X_BE]
+            object_pose = [np.linalg.inv(X_BS) @ x_bo for x_bo in X_BO]
+
         ee_pos = [x[:3,3] for x in ee_pose]
         ee_orien = [matrix_to_rotation_6d(x[:3,:3]) for x in ee_pose]
         object_pos =  [x[:3,3] for x in object_pose]
@@ -419,6 +427,9 @@ class DiffusionPolicy():
         elif self.params.action_frame == 'global':
             nee_pos = self.dutils.normalize_data(ee_pos, stats=self.stats['pos_follower_global'])
             object_pos = self.dutils.normalize_data(object_pos, stats=self.stats['pos_object_global'])
+        elif self.params.action_frame == 'ee_centric':
+            nee_pos = self.dutils.normalize_data(ee_pos, stats=self.stats['ee_centric'])
+            object_pos = self.dutils.normalize_data(object_pos, stats=self.stats['ee_centric'])
 
         ngripper_state = self.dutils.normalize_data(gripper_state, stats=self.stats['gripper_state']).reshape(-1, 1)
 
@@ -429,6 +440,11 @@ class DiffusionPolicy():
             else:
                 robot_state = torch.from_numpy(np.concatenate([nee_pos, ee_orien, ngripper_state], axis=-1)).to(self.device, dtype=self.precision)
         elif self.params.action_frame == 'global':
+            if not self.params.symmetric:
+                robot_state = torch.from_numpy(np.concatenate([nee_pos, ee_orien, object_orien, object_pos, ngripper_state], axis=-1)).to(self.device, dtype=self.precision)
+            else:
+                robot_state = torch.from_numpy(np.concatenate([nee_pos, ee_orien, object_pos, ngripper_state], axis=-1)).to(self.device, dtype=self.precision)
+        elif self.params.action_frame == 'ee_centric':
             if not self.params.symmetric:
                 robot_state = torch.from_numpy(np.concatenate([nee_pos, ee_orien, object_orien, object_pos, ngripper_state], axis=-1)).to(self.device, dtype=self.precision)
             else:
@@ -516,6 +532,8 @@ class DiffusionPolicy():
             action_pos = self.dutils.unnormalize_data(action_pos, stats=self.stats['pos_leader'])
         elif self.params.action_frame == 'global':
             action_pos = self.dutils.unnormalize_data(action_pos, stats=self.stats['pos_leader_global'])
+        elif self.params.action_frame == 'ee_centric':
+            action_pos = self.dutils.unnormalize_data(action_pos, stats=self.stats['ee_centric'])
 
         action_progress = self.dutils.unnormalize_data(action_progress, stats=self.stats['progress'])
         action_gripper = self.dutils.unnormalize_data(action_gripper, stats=self.stats['gripper_action'])
@@ -554,6 +572,10 @@ class DiffusionPolicy():
 
         elif self.params.action_frame == 'global':
             X_BE = action
+
+        elif self.params.action_frame == 'ee_centric':
+            X_BS = np.array(obs_deque[0]['X_BE'])
+            X_BE = [X_BS @ x_se for x_se in action]
 
         return {'action': X_BE, 
                 'action_gripper': action_gripper,
