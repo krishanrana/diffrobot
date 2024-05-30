@@ -1,6 +1,6 @@
 import torch
 
-dataset_path = "/home/krishan/work/2024/datasets/saucer_10_demos_FINAL" # TODO: DID YOU UPDATE THE SYMETRIC FLAG BELOW?
+dataset_path = "/home/krishan/work/2024/datasets/teaspoon_stir_10_demo_monday" # TODO: DID YOU UPDATE THE SYMETRIC FLAG BELOW?
 action_frame = 'ee_centric' # 'global' or 'object_centric' or 'ee_centric'
 
 
@@ -24,9 +24,9 @@ elif action_frame == 'global':
         low_dim = 19
 elif action_frame == 'ee_centric':
     if symmetric:
-        low_dim = 13
-    else:
         low_dim = 19
+    else:
+        low_dim = 25
 
 
 tactile_dim = 16

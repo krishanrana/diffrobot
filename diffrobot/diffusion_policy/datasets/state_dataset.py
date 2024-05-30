@@ -129,12 +129,12 @@ class DiffusionStateDataset(torch.utils.data.Dataset):
             pos_follower = precomputed['pos_follower']
             orien_follower = precomputed['orien_follower']
             pos_object = precomputed['pos_object']
-            # orien_object = precomputed['orien_object'] # using the orien wrt to reference frame 
+            orien_object_ee = precomputed['orien_object'] # using the orien wrt to reference frame 
 
             if not self.symmetric:
-                robot_state = np.concatenate([pos_follower, orien_follower, orien_object, pos_object, gripper_state], axis=-1)
+                robot_state = np.concatenate([pos_follower, orien_follower, orien_object, orien_object_ee, pos_object, gripper_state], axis=-1)
             else:
-                robot_state = np.concatenate([pos_follower, orien_follower, pos_object, gripper_state], axis=-1)
+                robot_state = np.concatenate([pos_follower, orien_follower, pos_object, orien_object_ee, gripper_state], axis=-1)
 
 
 
