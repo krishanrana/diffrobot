@@ -1,11 +1,11 @@
 import torch
 
-dataset_path = "/home/krishan/work/2024/datasets/teapot_pour_10_saturday" # TODO: DID YOU UPDATE THE SYMETRIC FLAG BELOW?
+dataset_path = "/home/krishan/work/2024/datasets/saucer_10_demos_FINAL" # TODO: DID YOU UPDATE THE SYMETRIC FLAG BELOW?
 action_frame = 'ee_centric' # 'global' or 'object_centric' or 'ee_centric'
 
 
 
-symmetric = False
+symmetric = True
 transformed_affordance = False
 transformed_ee = False
 
@@ -40,7 +40,7 @@ global_cond_dim = (obs_dim*obs_horizon)
 
 num_diffusion_iters = 50
 
-batch_size = 128 #128
+batch_size = 256 #128
 num_workers = 11
 num_epochs = 4500
 

@@ -58,6 +58,52 @@ class DiffusionStateDataset(torch.utils.data.Dataset):
         self.action_horizon = action_horizon
         self.obs_horizon = obs_horizon
 
+        # Precompute ee_centric transformations if needed
+        if self.action_frame == 'ee_centric':
+            self.precompute_ee_centric_transformations()
+
+
+
+    def precompute_ee_centric_transformations(self):
+        self.precomputed_data = {}
+        for episode, phase, start_idx, end_idx in self.indices:
+            phase = str(phase)
+            if episode not in self.precomputed_data:
+                self.precomputed_data[episode] = {}
+            if phase not in self.precomputed_data[episode]:
+                self.precomputed_data[episode][phase] = {}
+            
+            if (start_idx, end_idx) not in self.precomputed_data[episode][phase]:
+                X_BE_follower = self.all_data[episode][phase]['X_BE_follower'][start_idx:end_idx:self.freq_divisor]
+                X_B_O1 = self.all_data[episode][phase]['X_B_O1'][start_idx:end_idx:self.freq_divisor]
+                X_BS_follower = np.array(X_BE_follower[0])
+                X_SE_follower = [np.linalg.inv(X_BS_follower) @ x_be for x_be in X_BE_follower]
+                X_SO = [np.linalg.inv(X_BS_follower) @ x_bo for x_bo in X_B_O1]
+
+                pos_follower, orien_follower = self.dutils.extract_robot_pos_orien(X_SE_follower)
+                pos_object, orien_object = self.dutils.extract_robot_pos_orien(X_SO)
+
+                # Normalize
+                pos_follower = self.dutils.normalize_data(pos_follower, self.stats['ee_centric'])
+                pos_object = self.dutils.normalize_data(pos_object, self.stats['ee_centric'])
+
+                # Precompute action data
+                X_BE_leader = self.all_data[episode][phase]['X_BE_leader'][start_idx:end_idx:self.freq_divisor]
+                X_BS_leader = np.array(X_BE_leader[0])
+                X_SE_leader = [np.linalg.inv(X_BS_leader) @ x_be for x_be in X_BE_leader]
+                pos_leader, orien_leader = self.dutils.extract_robot_pos_orien(X_SE_leader)
+                
+                # Normalize
+                pos_leader = self.dutils.normalize_data(pos_leader, self.stats['ee_centric'])
+                
+                self.precomputed_data[episode][phase][(start_idx, end_idx)] = {
+                    'pos_follower': pos_follower,
+                    'orien_follower': orien_follower,
+                    'pos_object': pos_object,
+                    'orien_object': orien_object,
+                    'pos_leader': pos_leader,
+                    'orien_leader': orien_leader
+                }
 
     def sample_sequence(self, episode, phase, start_idx, end_idx):
 
@@ -77,25 +123,40 @@ class DiffusionStateDataset(torch.utils.data.Dataset):
         orien_object_global = self.all_data[episode][phase]['orien_object_global'][start_idx:end_idx:self.freq_divisor]
         pos_object_global = self.all_data[episode][phase]['pos_object_global'][start_idx:end_idx:self.freq_divisor]
 
+
         if self.action_frame == 'ee_centric':
-            X_BE_follower = self.all_data[episode][phase]['X_BE_follower'][start_idx:end_idx:self.freq_divisor]
-            X_BS_follower = np.array(X_BE_follower[0])
-            X_SE_follower = [np.linalg.inv(X_BS_follower) @ x_be for x_be in X_BE_follower]
-
-            X_B_O1 = self.all_data[episode][phase]['X_B_O1'][start_idx:end_idx:self.freq_divisor]
-            X_SO = [np.linalg.inv(X_BS_follower) @ x_bo for x_bo in X_B_O1]
-
-            pos_follower, orien_follower = self.dutils.extract_robot_pos_orien(X_SE_follower)
-            pos_object, orien_object = self.dutils.extract_robot_pos_orien(X_SO)
-
-            # normalize
-            pos_follower = self.dutils.normalize_data(pos_follower, self.stats['ee_centric'])
-            pos_object = self.dutils.normalize_data(pos_object, self.stats['ee_centric'])
+            precomputed = self.precomputed_data[episode][phase][(start_idx, end_idx)]
+            pos_follower = precomputed['pos_follower']
+            orien_follower = precomputed['orien_follower']
+            pos_object = precomputed['pos_object']
+            # orien_object = precomputed['orien_object'] # using the orien wrt to reference frame 
 
             if not self.symmetric:
-                robot_state = np.concatenate([pos_follower, orien_follower, orien_object, pos_object ,gripper_state], axis=-1)
+                robot_state = np.concatenate([pos_follower, orien_follower, orien_object, pos_object, gripper_state], axis=-1)
             else:
                 robot_state = np.concatenate([pos_follower, orien_follower, pos_object, gripper_state], axis=-1)
+
+
+
+        # if self.action_frame == 'ee_centric':
+        #     X_BE_follower = self.all_data[episode][phase]['X_BE_follower'][start_idx:end_idx:self.freq_divisor]
+        #     X_BS_follower = np.array(X_BE_follower[0])
+        #     X_SE_follower = [np.linalg.inv(X_BS_follower) @ x_be for x_be in X_BE_follower]
+
+        #     X_B_O1 = self.all_data[episode][phase]['X_B_O1'][start_idx:end_idx:self.freq_divisor]
+        #     X_SO = [np.linalg.inv(X_BS_follower) @ x_bo for x_bo in X_B_O1]
+
+        #     pos_follower, orien_follower = self.dutils.extract_robot_pos_orien(X_SE_follower)
+        #     pos_object, orien_object = self.dutils.extract_robot_pos_orien(X_SO)
+
+        #     # normalize
+        #     pos_follower = self.dutils.normalize_data(pos_follower, self.stats['ee_centric'])
+        #     pos_object = self.dutils.normalize_data(pos_object, self.stats['ee_centric'])
+
+        #     if not self.symmetric:
+        #         robot_state = np.concatenate([pos_follower, orien_follower, orien_object, pos_object ,gripper_state], axis=-1)
+        #     else:
+        #         robot_state = np.concatenate([pos_follower, orien_follower, pos_object, gripper_state], axis=-1)
 
 
         if self.action_frame == 'object_centric':
@@ -124,16 +185,24 @@ class DiffusionStateDataset(torch.utils.data.Dataset):
             orien_leader_global = self.all_data[episode][phase]['orien_leader_global'][start_idx:end_idx:self.freq_divisor]
             robot_action = np.concatenate([pos_leader_global, orien_leader_global, gripper_action, progress], axis=-1)
 
+        # if self.action_frame == 'ee_centric':
+        #     X_BE_leader = self.all_data[episode][phase]['X_BE_leader'][start_idx:end_idx:self.freq_divisor]
+        #     X_BS_leader = np.array(X_BE_leader[0])
+        #     X_SE_leader = [np.linalg.inv(X_BS_leader) @ x_be for x_be in X_BE_leader]
+        #     pos_leader, orien_leader = self.dutils.extract_robot_pos_orien(X_SE_leader)
+
+        #     gripper_action = self.all_data[episode][phase]['gripper_action'][start_idx:end_idx:self.freq_divisor].reshape(-1, 1)
+
+        #     # normalize
+        #     pos_leader = self.dutils.normalize_data(pos_leader, self.stats['ee_centric'])
+        #     robot_action = np.concatenate([pos_leader, orien_leader, gripper_action, progress], axis=-1)
+
         if self.action_frame == 'ee_centric':
-            X_BE_leader = self.all_data[episode][phase]['X_BE_leader'][start_idx:end_idx:self.freq_divisor]
-            X_BS_leader = np.array(X_BE_leader[0])
-            X_SE_leader = [np.linalg.inv(X_BS_leader) @ x_be for x_be in X_BE_leader]
-            pos_leader, orien_leader = self.dutils.extract_robot_pos_orien(X_SE_leader)
-
+            precomputed = self.precomputed_data[episode][phase][(start_idx, end_idx)]
+            pos_leader = precomputed['pos_leader']
+            orien_leader = precomputed['orien_leader']
             gripper_action = self.all_data[episode][phase]['gripper_action'][start_idx:end_idx:self.freq_divisor].reshape(-1, 1)
-
-            # normalize
-            pos_leader = self.dutils.normalize_data(pos_leader, self.stats['ee_centric'])
+            
             robot_action = np.concatenate([pos_leader, orien_leader, gripper_action, progress], axis=-1)
 
         return {'state': robot_state,
