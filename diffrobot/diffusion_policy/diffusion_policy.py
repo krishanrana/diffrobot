@@ -411,12 +411,16 @@ class DiffusionPolicy():
         elif self.params.action_frame == 'ee_centric':
             X_BE = [o['X_BE'] for o in obs_deque]
             X_BO = [o['X_BO'] for o in obs_deque]
+            X_B_OO = obs_deque[0]['X_B_OO'].A
             X_BS = np.array(X_BE[0])
-            ee_pose = [np.linalg.inv(X_BS) @ x_be for x_be in X_BE]
-            object_pose = [np.linalg.inv(X_BS) @ x_bo for x_bo in X_BO]
+            X_E_OO = [np.linalg.inv(x_be) @ X_B_OO for x_be in X_BE] # X_E_OO
+            ee_pose = [np.linalg.inv(X_BS) @ x_be for x_be in X_BE] # X_SE
+            object_pose = [np.linalg.inv(X_BS) @ x_bo for x_bo in X_BO] # X_SO
+
+            X_S_OO = [x_se @ x_e_oo for x_se, x_e_oo in zip(ee_pose, X_E_OO)]
             
             object_pose_for_orien = [o['X_OO_O'] for o in obs_deque] # object pose in oriented frame
-            object_orien_ee_centric = [matrix_to_rotation_6d(x[:3,:3]) for x in object_pose_for_orien]
+            object_orien_goal = [matrix_to_rotation_6d(x[:3,:3]) for x in object_pose_for_orien]
 
         ee_pos = [x[:3,3] for x in ee_pose]
         ee_orien = [matrix_to_rotation_6d(x[:3,:3]) for x in ee_pose]
@@ -449,7 +453,7 @@ class DiffusionPolicy():
                 robot_state = torch.from_numpy(np.concatenate([nee_pos, ee_orien, object_pos, ngripper_state], axis=-1)).to(self.device, dtype=self.precision)
         elif self.params.action_frame == 'ee_centric':
             if not self.params.symmetric:
-                robot_state = torch.from_numpy(np.concatenate([nee_pos, ee_orien, object_orien_ee_centric, object_pos, ngripper_state], axis=-1)).to(self.device, dtype=self.precision)
+                robot_state = torch.from_numpy(np.concatenate([nee_pos, ee_orien, object_orien_goal, object_pos, ngripper_state], axis=-1)).to(self.device, dtype=self.precision)
             else:
                 robot_state = torch.from_numpy(np.concatenate([nee_pos, ee_orien, object_pos, ngripper_state], axis=-1)).to(self.device, dtype=self.precision)
             
