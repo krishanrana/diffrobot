@@ -75,10 +75,16 @@ class DiffusionStateDataset(torch.utils.data.Dataset):
             
             if (start_idx, end_idx) not in self.precomputed_data[episode][phase]:
                 X_BE_follower = self.all_data[episode][phase]['X_BE_follower'][start_idx:end_idx:self.freq_divisor]
+                X_OO_E_follower = self.all_data[episode][phase]['X_OO_E_follower'][start_idx:end_idx:self.freq_divisor]
+                X_E_OO_follower = [np.linalg.inv(x_oo_e) for x_oo_e in X_OO_E_follower]
+                
                 X_B_O1 = self.all_data[episode][phase]['X_B_O1'][start_idx:end_idx:self.freq_divisor]
                 X_BS_follower = np.array(X_BE_follower[0])
                 X_SE_follower = [np.linalg.inv(X_BS_follower) @ x_be for x_be in X_BE_follower]
                 X_SO = [np.linalg.inv(X_BS_follower) @ x_bo for x_bo in X_B_O1]
+
+                X_S_OO = [x_se @ x_e_oo for x_se, x_e_oo in zip(X_SE_follower, X_E_OO_follower)]
+                goal_pos, goal_orien = self.dutils.extract_robot_pos_orien(X_S_OO)
 
                 pos_follower, orien_follower = self.dutils.extract_robot_pos_orien(X_SE_follower)
                 pos_object, orien_object = self.dutils.extract_robot_pos_orien(X_SO)
@@ -102,7 +108,9 @@ class DiffusionStateDataset(torch.utils.data.Dataset):
                     'pos_object': pos_object,
                     'orien_object': orien_object,
                     'pos_leader': pos_leader,
-                    'orien_leader': orien_leader
+                    'orien_leader': orien_leader,
+                    'goal_pos': goal_pos,
+                    'goal_orien': goal_orien
                 }
 
     def sample_sequence(self, episode, phase, start_idx, end_idx):
@@ -130,9 +138,10 @@ class DiffusionStateDataset(torch.utils.data.Dataset):
             orien_follower = precomputed['orien_follower']
             pos_object = precomputed['pos_object']
             orien_object_ee = precomputed['orien_object'] # using the orien wrt to reference frame 
+            goal_orien = precomputed['goal_orien']
 
             if not self.symmetric:
-                robot_state = np.concatenate([pos_follower, orien_follower, orien_object, orien_object_ee, pos_object, gripper_state], axis=-1)
+                robot_state = np.concatenate([pos_follower, orien_follower, goal_orien, orien_object_ee, pos_object, gripper_state], axis=-1)
             else:
                 robot_state = np.concatenate([pos_follower, orien_follower, pos_object, orien_object_ee, gripper_state], axis=-1)
 

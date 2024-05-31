@@ -1,11 +1,11 @@
 import torch
 
-dataset_path = "/home/krishan/work/2024/datasets/teaspoon_stir_10_demo_monday" # TODO: DID YOU UPDATE THE SYMETRIC FLAG BELOW?
+dataset_path = "/home/krishan/work/2024/datasets/teaspoon_pick_10_demo_monday" # TODO: DID YOU UPDATE THE SYMETRIC FLAG BELOW?
 action_frame = 'ee_centric' # 'global' or 'object_centric' or 'ee_centric'
 
 
 
-symmetric = True
+symmetric = False
 transformed_affordance = False
 transformed_ee = False
 
