@@ -272,6 +272,149 @@ class DatasetUtils:
             pickle.dump(stats, f)
 
         return rlds, stats
+    
+
+
+    def create_rlds_e2e(self, num_noisy_variations=0):
+        def add_noise(data, noise_level):
+            return data + np.random.normal(scale=noise_level, size=data.shape)
+
+        # Define noise levels for position and orientation
+        pos_noise_level = 0.01  # Example noise level for position
+        orien_noise_level = 0.01  # Example noise level for orientation
+
+        rlds = {}
+        episodes = sorted(os.listdir(os.path.join(self.dataset_path, "episodes")), key=lambda x: int(x))
+        original_num_episodes = len(episodes)
+
+        for episode_index, episode in enumerate(episodes):
+            episode_path = os.path.join(self.dataset_path, "episodes", episode, "state.json")
+            X_B_cup_path = os.path.join(self.dataset_path, "episodes", episode, "cup_frames.json")
+            X_B_saucer_path = os.path.join(self.dataset_path, "episodes", episode, "saucer_frames.json")
+            X_B_teapot_path = os.path.join(self.dataset_path, "episodes", episode, "teapot_frames.json")
+            X_B_spoon_path = os.path.join(self.dataset_path, "episodes", episode, "spoon_frames.json")
+
+            cup_data = json.load(open(X_B_cup_path, "r"))
+            saucer_data = json.load(open(X_B_saucer_path, "r"))
+            teapot_data = json.load(open(X_B_teapot_path, "r")) 
+            spoon_data = json.load(open(X_B_spoon_path, "r"))
+
+
+            with open(episode_path, "r") as f:
+                data = json.load(f)
+
+
+            df = pd.DataFrame(data)
+            df['idx'] = range(len(df))
+
+            df_cup = pd.DataFrame(cup_data)
+            df_saucer = pd.DataFrame(saucer_data)
+            df_teapot = pd.DataFrame(teapot_data)
+            df_spoon = pd.DataFrame(spoon_data)
+            phases = df['phase'].unique()
+
+            rlds[episode_index] = {}
+            for phase in phases:
+                phase_data = df[df['phase'] == phase]
+
+                # print("Processing episode {} phase {}".format(episode, phase))
+
+                X_BE_follower = phase_data['X_BE'].tolist()
+                X_BE_leader = [(self.robot.fkine(np.array(q), "panda_link8") * self.X_FE).A for q in phase_data['gello_q']]                
+
+                X_BO_cup = df_cup[df_cup['frame_id'].isin(phase_data['idx'])]
+                X_BO_saucer = df_saucer[df_saucer['frame_id'].isin(phase_data['idx'])]
+                X_BO_teapot = df_teapot[df_teapot['frame_id'].isin(phase_data['idx'])]
+                X_BO_spoon = df_spoon[df_spoon['frame_id'].isin(phase_data['idx'])]
+
+                # get global object data
+                pos_cup, orien_cup = self.extract_robot_pos_orien(X_BO_cup['X_BO'])
+                pos_saucer, orien_saucer = self.extract_robot_pos_orien(X_BO_saucer['X_BO'])
+                pos_teapot, orien_teapot = self.extract_robot_pos_orien(X_BO_teapot['X_BO'])
+                pos_spoon, orien_spoon = self.extract_robot_pos_orien(X_BO_spoon['X_BO'])
+
+                progress = self.linear_progress(len(phase_data))
+
+    
+                pos_follower, orien_follower = self.extract_robot_pos_orien(X_BE_follower)
+                pos_leader, orien_leader = self.extract_robot_pos_orien(X_BE_leader)
+
+                
+
+                rlds[episode_index][str(int(phase))] = {
+                    'X_BE_follower': X_BE_follower,
+                    'X_BE_leader': X_BE_leader,
+                    'robot_q': phase_data['robot_q'].tolist(),
+                    'gello_q': phase_data['gello_q'].tolist(),
+                    'gripper_state': phase_data['gripper_state'].tolist(),
+                    'gripper_action': phase_data['gripper_action'].tolist(),
+                    'joint_torques': phase_data['joint_torques'].tolist(),
+                    'ee_forces': phase_data['ee_forces'].tolist(),
+                    'progress': progress,
+                    'pos_follower': pos_follower,
+                    'orien_follower': orien_follower,
+                    'pos_leader': pos_leader,
+                    'orien_leader': orien_leader,
+                    'phase': phase_data['phase'].to_list(),
+                    'pos_cup': pos_cup,
+                    'orien_cup': orien_cup,
+                    'pos_saucer': pos_saucer,
+                    'orien_saucer': orien_saucer,
+                    'pos_teapot': pos_teapot,
+                    'orien_teapot': orien_teapot,
+                    'pos_spoon': pos_spoon,
+                    'orien_spoon': orien_spoon
+                }
+
+
+                # Add noisy variations
+                for i in range(num_noisy_variations):
+                    pos_follower_noisy = [add_noise(np.array(pos), pos_noise_level) for pos in pos_follower]
+                    orien_follower_noisy = [add_noise(np.array(orien), orien_noise_level) for orien in orien_follower]
+
+                    noisy_episode_index = original_num_episodes + episode_index * num_noisy_variations + i
+                    rlds[noisy_episode_index] = {}
+                    rlds[noisy_episode_index][str(int(phase))] = {
+                        'X_BE_follower': X_BE_follower,
+                        'X_BE_leader': X_BE_leader,
+                        'robot_q': phase_data['robot_q'].tolist(),
+                        'gello_q': phase_data['gello_q'].tolist(),
+                        'gripper_state': phase_data['gripper_state'].tolist(),
+                        'gripper_action': phase_data['gripper_action'].tolist(),
+                        'joint_torques': phase_data['joint_torques'].tolist(),
+                        'ee_forces': phase_data['ee_forces'].tolist(),
+                        'progress': progress,
+                        'pos_follower': pos_follower,
+                        'orien_follower': orien_follower,
+                        'pos_leader': pos_leader,
+                        'orien_leader': orien_leader,
+                        'phase': phase_data['phase'].to_list(),
+                        'pos_cup': pos_cup,
+                        'orien_cup': orien_cup,
+                        'pos_saucer': pos_saucer,
+                        'orien_saucer': orien_saucer,
+                        'pos_teapot': pos_teapot,
+                        'orien_teapot': orien_teapot,
+                        'pos_spoon': pos_spoon,
+                        'orien_spoon': orien_spoon
+                    }
+
+        stats = self.get_stats_rlds_e2e(rlds)
+        stats['gripper_action']['min'] = np.array([0.0])
+        stats['gripper_action']['max'] = np.array([1.0])
+        stats['gripper_state']['min'] = np.array([0.002619443228468299])
+        stats['gripper_state']['max'] = np.array([0.06950554251670837])
+
+        rlds = self.normalize_rlds_e2e(rlds, stats)
+
+        with open(os.path.join(self.dataset_path, "rlds.pkl"), 'wb') as f:
+            pickle.dump(rlds, f)
+
+        with open(os.path.join(self.dataset_path, "stats.pkl"), 'wb') as f:
+            pickle.dump(stats, f)
+
+        return rlds, stats
+
         
 
     def get_stats_rlds(self, rlds):
@@ -318,10 +461,55 @@ class DatasetUtils:
         stats['ee_centric'] = {'min': np.array([-1.0]),
                                 'max': np.array([1.0]) }
         
-
-
-
         return stats
+    
+    def get_stats_rlds_e2e(self, rlds):
+            
+            all_pos_follower = []
+            all_pos_leader = []
+            all_gripper_state = []
+            all_gripper_action = []
+            all_progress = []
+            all_phase = []
+            
+            all_pos_cup = []
+            all_pos_saucer = []
+            all_pos_teapot = []
+            all_pos_spoon = []
+    
+            for episode in rlds:
+                ep_data = rlds[episode]
+                for phase in ep_data:
+                    phase_data = ep_data[phase]
+                    all_pos_follower.append(phase_data['pos_follower'])
+                    all_pos_leader.append(phase_data['pos_leader'])
+                    all_gripper_state.append(phase_data['gripper_state'])
+                    all_gripper_action.append(phase_data['gripper_action'])
+                    all_progress.append(phase_data['progress'])
+                    all_pos_cup.append(phase_data['pos_cup'])
+                    all_pos_saucer.append(phase_data['pos_saucer'])
+                    all_pos_teapot.append(phase_data['pos_teapot'])
+                    all_pos_spoon.append(phase_data['pos_spoon'])
+    
+                    # all_phase.append(phase_data['phase'])
+            
+            stats = dict()
+            stats['pos_follower'] = self.get_data_stats(all_pos_follower)
+            stats['pos_leader'] = self.get_data_stats(all_pos_leader)
+            stats['gripper_state'] = self.get_data_stats(all_gripper_state)
+            stats['gripper_action'] = self.get_data_stats(all_gripper_action)
+            stats['progress'] = self.get_data_stats(all_progress)
+            # stats['phase'] = self.get_data_stats(all_phase)
+    
+            stats['pos_cup'] = self.get_data_stats(all_pos_cup)
+            stats['pos_saucer'] = self.get_data_stats(all_pos_saucer)
+            stats['pos_teapot'] = self.get_data_stats(all_pos_teapot)
+            stats['pos_spoon'] = self.get_data_stats(all_pos_spoon)
+    
+            stats['ee_centric'] = {'min': np.array([-1.0]),
+                                    'max': np.array([1.0]) }
+            
+            return stats
     
     def normalize_rlds(self, rlds, stats):
         for episode in rlds:
@@ -338,6 +526,26 @@ class DatasetUtils:
                 phase_data['pos_follower_global'] = self.normalize_data(phase_data['pos_follower_global'], stats['pos_follower_global'])
                 phase_data['pos_leader_global'] = self.normalize_data(phase_data['pos_leader_global'], stats['pos_leader_global'])
                 phase_data['pos_object_global'] = self.normalize_data(phase_data['pos_object_global'], stats['pos_object_global'])
+
+                # phase_data['phase'] = self.normalize_data(phase_data['phase'], stats['phase'])
+        return rlds
+    
+    def normalize_rlds_e2e(self, rlds, stats):
+        for episode in rlds:
+            ep_data = rlds[episode]
+            # print("Normalizing episode {}".format(episode))
+            for phase in ep_data:
+                phase_data = ep_data[phase]
+                phase_data['pos_follower'] = self.normalize_data(phase_data['pos_follower'], stats['pos_follower'])
+                phase_data['pos_leader'] = self.normalize_data(phase_data['pos_leader'], stats['pos_leader'])
+                phase_data['gripper_state'] = self.normalize_data(phase_data['gripper_state'], stats['gripper_state'])
+                phase_data['gripper_action'] = self.normalize_data(phase_data['gripper_action'], stats['gripper_action'])
+                phase_data['progress'] = self.normalize_data(phase_data['progress'], stats['progress'])
+
+                phase_data['pos_cup'] = self.normalize_data(phase_data['pos_cup'], stats['pos_cup'])
+                phase_data['pos_saucer'] = self.normalize_data(phase_data['pos_saucer'], stats['pos_saucer'])
+                phase_data['pos_teapot'] = self.normalize_data(phase_data['pos_teapot'], stats['pos_teapot'])
+                phase_data['pos_spoon'] = self.normalize_data(phase_data['pos_spoon'], stats['pos_spoon'])
 
                 # phase_data['phase'] = self.normalize_data(phase_data['phase'], stats['phase'])
         return rlds
@@ -672,13 +880,13 @@ def detect_aruco_markers(dataset_path:str, marker_id:int=3, file_name:str="cup_f
 
 if __name__ == "__main__":
 
-    fpath = "/home/krishan/work/2024/datasets/teapot_place_wednesday_10"
+    fpath = "/home/krishan/work/2024/datasets/make_tea_full_task_10"
     dataset_utils = DatasetUtils(fpath)
-    detect_aruco_markers(fpath, marker_id=4, file_name="secondary_affordance_frames.json", dynamic_object=True)
+    detect_aruco_markers(fpath, marker_id=8, file_name="spoon_frames.json", dynamic_object=True)
     # detect_aruco_markers(fpath, marker_id=3, file_name="affordance_frames.json", dynamic_object=False)
     # detect_aruco_markers(fpath, marker_id=10, file_name="affordance_frames.json", dynamic_object=False)
     # detect_aruco_markers(fpath, marker_id=3, file_name="relative_frame.json", dynamic_object=False)
-    rlds = dataset_utils.create_rlds()
+    # rlds = dataset_utils.create_rlds()
 
 
 

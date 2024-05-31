@@ -25,7 +25,8 @@ class DiffusionStateDataset(torch.utils.data.Dataset):
         self.action_frame = action_frame
         self.dataset_path = dataset_path
         self.dutils = DatasetUtils(dataset_path)
-        self.all_data, self.stats = self.dutils.create_rlds(transformed_affordance=transformed_affordance, transformed_ee=transformed_ee)
+        # self.all_data, self.stats = self.dutils.create_rlds(transformed_affordance=transformed_affordance, transformed_ee=transformed_ee)
+        self.all_data, self.stats = self.dutils.create_rlds_e2e()
         self.stage = stage
         self.symmetric = symmetric
 
@@ -35,12 +36,6 @@ class DiffusionStateDataset(torch.utils.data.Dataset):
         # WIP
         indices = self.dutils.create_sample_indices(self.all_data, sequence_length=pred_horizon*self.freq_divisor)
         
-        if self.action_frame == 'global':
-            pass
-
-        if self.action_frame == 'object_centric':
-            pass
-
         # shuffle indices
         np.random.seed(0)
         np.random.shuffle(indices)
@@ -104,6 +99,48 @@ class DiffusionStateDataset(torch.utils.data.Dataset):
                     'pos_leader': pos_leader,
                     'orien_leader': orien_leader
                 }
+
+    def sample_sequence_e2e(self, episode, phase, start_idx, end_idx):
+
+        # episode = str(episode)
+        phase = str(phase)
+
+        # state data
+        pos_follower = self.all_data[episode][phase]['pos_follower'][start_idx:end_idx:self.freq_divisor]
+        orien_follower = self.all_data[episode][phase]['orien_follower'][start_idx:end_idx:self.freq_divisor]
+        progress = self.all_data[episode][phase]['progress'][start_idx:end_idx:self.freq_divisor]
+        gripper_state = self.all_data[episode][phase]['gripper_state'][start_idx:end_idx:self.freq_divisor].reshape(-1, 1)
+        progress = self.all_data[episode][phase]['progress'][start_idx:end_idx:self.freq_divisor].reshape(-1, 1)
+
+        pos_cup = self.all_data[episode][phase]['pos_cup'][start_idx:end_idx:self.freq_divisor]
+        orien_cup = self.all_data[episode][phase]['orien_cup'][start_idx:end_idx:self.freq_divisor]
+        pos_saucer = self.all_data[episode][phase]['pos_saucer'][start_idx:end_idx:self.freq_divisor]
+        orien_saucer = self.all_data[episode][phase]['orien_saucer'][start_idx:end_idx:self.freq_divisor]
+        pos_teapot = self.all_data[episode][phase]['pos_teapot'][start_idx:end_idx:self.freq_divisor]
+        orien_teapot = self.all_data[episode][phase]['orien_teapot'][start_idx:end_idx:self.freq_divisor]
+        pos_spoon = self.all_data[episode][phase]['pos_spoon'][start_idx:end_idx:self.freq_divisor]
+        orien_spoon = self.all_data[episode][phase]['orien_spoon'][start_idx:end_idx:self.freq_divisor]
+
+        robot_state = np.concatenate([pos_follower, orien_follower, 
+                                      pos_cup, orien_cup,
+                                      pos_saucer, orien_saucer,
+                                      pos_teapot, orien_teapot,
+                                      pos_spoon, orien_spoon,
+                                      gripper_state], axis=-1)
+        
+        pos_leader = self.all_data[episode][phase]['pos_leader'][start_idx:end_idx:self.freq_divisor]
+        orien_leader = self.all_data[episode][phase]['orien_leader'][start_idx:end_idx:self.freq_divisor]
+        gripper_action = self.all_data[episode][phase]['gripper_action'][start_idx:end_idx:self.freq_divisor].reshape(-1, 1)
+        
+        robot_action = np.concatenate([pos_leader, orien_leader, gripper_action, progress], axis=-1)
+
+        return {'state': robot_state,
+                'action': robot_action}
+
+
+
+
+
 
     def sample_sequence(self, episode, phase, start_idx, end_idx):
 
@@ -218,9 +255,14 @@ class DiffusionStateDataset(torch.utils.data.Dataset):
         episode, phase, sample_start_idx, sample_end_idx = self.indices[idx]
 
         # get nomralized data using these indices
-        nsample = self.sample_sequence(
+        # nsample = self.sample_sequence(
+        #     episode, phase, sample_start_idx, sample_end_idx
+        # )
+
+        nsample = self.sample_sequence_e2e(
             episode, phase, sample_start_idx, sample_end_idx
-        )
+                )
+
 
         # normalize data
         nsample['state'] = nsample['state'][:self.obs_horizon,:]
