@@ -1,13 +1,13 @@
 import torch
 
-dataset_path = "/home/krishan/work/2024/datasets/make_tea_full_task_10" # TODO: DID YOU UPDATE THE SYMETRIC FLAG BELOW?
-action_frame = 'e2e' # 'global' or 'object_centric' or 'ee_centric'
+dataset_path = "/home/krishan/work/2024/datasets/saucer_10_demos_FINAL" # TODO: DID YOU UPDATE THE SYMETRIC FLAG BELOW?
+action_frame = 'object_centric' # 'global' or 'object_centric' or 'ee_centric'
 
 
-
-symmetric = False
+symmetric = True
 transformed_affordance = False
 transformed_ee = False
+oriented_frame = False
 
 down_dims = [128,256,256]
 diffusion_step_embed_dim = 128

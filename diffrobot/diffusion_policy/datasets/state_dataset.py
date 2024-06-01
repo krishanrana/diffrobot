@@ -20,13 +20,14 @@ class DiffusionStateDataset(torch.utils.data.Dataset):
                  symmetric: bool,
                  transformed_affordance: bool,
                  transformed_ee: bool,
+                 oriented_frame: bool,
                  action_frame: str):
 
         self.action_frame = action_frame
         self.dataset_path = dataset_path
         self.dutils = DatasetUtils(dataset_path)
-        # self.all_data, self.stats = self.dutils.create_rlds(transformed_affordance=transformed_affordance, transformed_ee=transformed_ee)
-        self.all_data, self.stats = self.dutils.create_rlds_e2e()
+        self.all_data, self.stats = self.dutils.create_rlds(transformed_affordance=transformed_affordance, transformed_ee=transformed_ee, oriented_frame=oriented_frame)
+        # self.all_data, self.stats = self.dutils.create_rlds_e2e()
         self.stage = stage
         self.symmetric = symmetric
 
@@ -255,13 +256,13 @@ class DiffusionStateDataset(torch.utils.data.Dataset):
         episode, phase, sample_start_idx, sample_end_idx = self.indices[idx]
 
         # get nomralized data using these indices
-        # nsample = self.sample_sequence(
-        #     episode, phase, sample_start_idx, sample_end_idx
-        # )
-
-        nsample = self.sample_sequence_e2e(
+        nsample = self.sample_sequence(
             episode, phase, sample_start_idx, sample_end_idx
-                )
+        )
+
+        # nsample = self.sample_sequence_e2e(
+        #     episode, phase, sample_start_idx, sample_end_idx
+        #         )
 
 
         # normalize data
