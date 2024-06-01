@@ -418,10 +418,12 @@ class DiffusionPolicy():
             X_OO_O = [o['X_OO_O'] for o in obs_deque] # object pose in oriented frame
             orien_to_goal = [matrix_to_rotation_6d(x[:3,:3]) for x in X_OO_O]
 
-        ee_pos = [x[:3,3] for x in ee_pose]
-        ee_orien = [matrix_to_rotation_6d(x[:3,:3]) for x in ee_pose]
-        object_pos =  [x[:3,3] for x in object_pose]
-        object_orien = [matrix_to_rotation_6d(x[:3,:3]) for x in object_pose]
+        if self.params.action_frame != 'e2e':
+
+            ee_pos = [x[:3,3] for x in ee_pose]
+            ee_orien = [matrix_to_rotation_6d(x[:3,:3]) for x in ee_pose]
+            object_pos =  [x[:3,3] for x in object_pose]
+            object_orien = [matrix_to_rotation_6d(x[:3,:3]) for x in object_pose]
 
         # normalize data
 
@@ -453,6 +455,34 @@ class DiffusionPolicy():
             else:
                 robot_state = torch.from_numpy(np.concatenate([nee_pos, ee_orien, object_pos, object_orien,  ngripper_state], axis=-1)).to(self.device, dtype=self.precision)
             
+        
+        if self.params.action_frame == 'e2e':
+            X_BE = [o['X_BE'] for o in obs_deque]
+            X_BO_cup = [o['X_BO_cup'] for o in obs_deque]
+            X_BO_saucer = [o['X_BO_saucer'] for o in obs_deque]
+            X_BO_teapot = [o['X_BO_teapot'] for o in obs_deque]
+            X_BO_spoon = [o['X_BO_spoon'] for o in obs_deque]
+
+            nee_pos, ee_orien = self.dutils.extract_robot_pos_orien(X_BE)
+            cup_pos, cup_orien = self.dutils.extract_robot_pos_orien(X_BO_cup)
+            saucer_pos, saucer_orien = self.dutils.extract_robot_pos_orien(X_BO_saucer)
+            teapot_pos, teapot_orien = self.dutils.extract_robot_pos_orien(X_BO_teapot)
+            spoon_pos, spoon_orien = self.dutils.extract_robot_pos_orien(X_BO_spoon)
+
+            nee_pos = self.dutils.normalize_data(nee_pos, stats=self.stats['pos_follower'])
+            cup_pos = self.dutils.normalize_data(cup_pos, stats=self.stats['pos_cup'])
+            saucer_pos = self.dutils.normalize_data(saucer_pos, stats=self.stats['pos_saucer'])
+            teapot_pos = self.dutils.normalize_data(teapot_pos, stats=self.stats['pos_teapot'])
+            spoon_pos = self.dutils.normalize_data(spoon_pos, stats=self.stats['pos_spoon'])
+
+            robot_state = torch.from_numpy(np.concatenate([nee_pos, ee_orien, 
+                                                        cup_pos, cup_orien,
+                                                        saucer_pos, saucer_orien,
+                                                        teapot_pos, teapot_orien,
+                                                        spoon_pos, spoon_orien,
+                                                        ngripper_state], axis=-1)).to(self.device, dtype=self.precision)
+        
+        
         obs_cond = robot_state
         obs_cond = obs_cond.flatten(start_dim=0).unsqueeze(0)
                 
@@ -537,6 +567,8 @@ class DiffusionPolicy():
             action_pos = self.dutils.unnormalize_data(action_pos, stats=self.stats['pos_leader_global'])
         elif self.params.action_frame == 'ee_centric':
             action_pos = self.dutils.unnormalize_data(action_pos, stats=self.stats['ee_centric'])
+        elif self.params.action_frame == 'e2e':
+            action_pos = self.dutils.unnormalize_data(action_pos, stats=self.stats['pos_leader'])
 
         action_progress = self.dutils.unnormalize_data(action_progress, stats=self.stats['progress'])
         action_gripper = self.dutils.unnormalize_data(action_gripper, stats=self.stats['gripper_action'])
@@ -574,6 +606,9 @@ class DiffusionPolicy():
             # X_BE = action
 
         elif self.params.action_frame == 'global':
+            X_BE = action
+
+        elif self.params.action_frame == 'e2e':
             X_BE = action
 
         elif self.params.action_frame == 'ee_centric':
