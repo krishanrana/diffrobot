@@ -175,6 +175,7 @@ class DiffusionPolicy():
                             "symmetric": self.params.symmetric,
                             "freq_divisor": self.params.freq_divisor,
                             "transformed_ee": self.params.transformed_ee,
+                            "oriented_frame": self.params.oriented_frame,
                             "transformed_affordance": self.params.transformed_affordance,
                             "action_frame": self.params.action_frame,}
             

@@ -93,7 +93,7 @@ class DatasetUtils:
         self.X_FE = sm.SE3(self.X_FE, check=False).norm()
         # self.affordance_transforms = json.load(open(os.path.join(self.dataset_path, "transforms", "to_afford.json"), "r"))  
 
-    def create_rlds(self, num_noisy_variations=5, transformed_affordance=False, transformed_ee=False):
+    def create_rlds(self, num_noisy_variations=5, transformed_affordance=False, transformed_ee=False, oriented_frame=True):
         def add_noise(data, noise_level):
             return data + np.random.normal(scale=noise_level, size=data.shape)
 
@@ -104,6 +104,11 @@ class DatasetUtils:
         rlds = {}
         episodes = sorted(os.listdir(os.path.join(self.dataset_path, "episodes")), key=lambda x: int(x))
         original_num_episodes = len(episodes)
+
+        if oriented_frame:
+            print('Using oriented affordance frame')
+        else:
+            print('Not using oriented affordance frame')
 
         if transformed_affordance:
             X_OA_path = os.path.join(self.dataset_path, "transforms", "affordance_transform.json")
@@ -182,10 +187,17 @@ class DatasetUtils:
 
                 X_OO_E_follower = [np.linalg.inv(x_b_oo1) @ x_be for x_b_oo1, x_be in zip(X_B_OO1, X_BE_follower)]
                 X_OO_E_leader = [np.linalg.inv(x_b_oo1) @ x_be for x_b_oo1, x_be in zip(X_B_OO1, X_BE_leader)]
-                orien_object = [matrix_to_rotation_6d(pose[:3, :3]) for pose in X_OO1_O1]
 
-                pos_follower, orien_follower = self.extract_robot_pos_orien(X_OO_E_follower)
-                pos_leader, orien_leader = self.extract_robot_pos_orien(X_OO_E_leader)
+                if oriented_frame: 
+                    orien_object = [matrix_to_rotation_6d(pose[:3, :3]) for pose in X_OO1_O1]
+                    pos_follower, orien_follower = self.extract_robot_pos_orien(X_OO_E_follower)
+                    pos_leader, orien_leader = self.extract_robot_pos_orien(X_OO_E_leader)
+                else:
+                    X_OE_follower = [np.linalg.inv(x_b_o1) @ x_be for x_b_o1, x_be in zip(X_B_O1, X_BE_follower)]
+                    X_OE_leader = [np.linalg.inv(x_b_o1) @ x_be for x_b_o1, x_be in zip(X_B_O1, X_BE_leader)]
+                    orien_object = [matrix_to_rotation_6d(pose[:3, :3]) for pose in X_OO1_O1]
+                    pos_follower, orien_follower = self.extract_robot_pos_orien(X_OE_follower)
+                    pos_leader, orien_leader = self.extract_robot_pos_orien(X_OE_leader)
 
                 
 
