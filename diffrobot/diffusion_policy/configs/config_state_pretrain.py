@@ -7,7 +7,7 @@ action_frame = 'object_centric' # 'global' or 'object_centric' or 'ee_centric'
 symmetric = True
 transformed_affordance = False
 transformed_ee = False
-oriented_frame = False
+oriented_frame = True
 
 down_dims = [128,256,256]
 diffusion_step_embed_dim = 128

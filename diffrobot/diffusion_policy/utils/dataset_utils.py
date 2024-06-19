@@ -93,7 +93,7 @@ class DatasetUtils:
         self.X_FE = sm.SE3(self.X_FE, check=False).norm()
         # self.affordance_transforms = json.load(open(os.path.join(self.dataset_path, "transforms", "to_afford.json"), "r"))  
 
-    def create_rlds(self, num_noisy_variations=5, transformed_affordance=False, transformed_ee=False, oriented_frame=True):
+    def create_rlds(self, num_noisy_variations=0, transformed_affordance=False, transformed_ee=False, oriented_frame=True):
         def add_noise(data, noise_level):
             return data + np.random.normal(scale=noise_level, size=data.shape)
 
@@ -892,9 +892,9 @@ def detect_aruco_markers(dataset_path:str, marker_id:int=3, file_name:str="cup_f
 
 if __name__ == "__main__":
 
-    fpath = "/home/krishan/work/2024/datasets/make_tea_full_task_10"
+    fpath = "/home/krishan/work/2024/datasets/cup_rotate_10_FINAL"
     dataset_utils = DatasetUtils(fpath)
-    detect_aruco_markers(fpath, marker_id=8, file_name="spoon_frames.json", dynamic_object=True)
+    detect_aruco_markers(fpath, marker_id=3, file_name="test.json", dynamic_object=True)
     # detect_aruco_markers(fpath, marker_id=3, file_name="affordance_frames.json", dynamic_object=False)
     # detect_aruco_markers(fpath, marker_id=10, file_name="affordance_frames.json", dynamic_object=False)
     # detect_aruco_markers(fpath, marker_id=3, file_name="relative_frame.json", dynamic_object=False)
