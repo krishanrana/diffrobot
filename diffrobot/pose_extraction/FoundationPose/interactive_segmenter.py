@@ -55,7 +55,7 @@ class InteractiveSegmenter:
         ax.imshow(image)
         # Connect the click event to the on_click function
         cid = fig.canvas.mpl_connect('button_press_event', lambda event: self.on_click(event, ax, fig))
-        plt.title('Click on the image to record reference coordinates')
+        plt.title('Click on the image to record points for SAM')
         plt.show()
 
     def segment_image(self, image):        

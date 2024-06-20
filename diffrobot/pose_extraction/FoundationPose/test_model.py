@@ -8,8 +8,19 @@ import cv2
 import os
 import pdb
 from scipy.spatial.transform import Rotation as R
+import json
+from diffrobot.diffusion_policy.utils.dataset_utils import adjust_orientation_to_z_up
 
+selected_points = []
 
+def pick_points(vis):
+    print("Press [shift + left click] to select a point and [shift + right click] to finish.")
+    vis.register_mouse_callback(mouse_callback)
+
+def mouse_callback(vis, action, mods):
+    if action == o3d.visualization.MouseAction.PICK_POINT:
+        print(f"Selected point: {vis.get_picked_points()}") 
+        selected_points.extend(vis.get_picked_points())
 
 if __name__ == '__main__':
 
@@ -71,10 +82,10 @@ if __name__ == '__main__':
 
     parser = argparse.ArgumentParser()
     code_dir = os.path.dirname(os.path.realpath(__file__))
-    parser.add_argument('--mesh_file', type=str, default=f'{code_dir}/demo_data/teapot/mesh/mesh_scaled.obj')
+    parser.add_argument('--mesh_file', type=str, default=f'{code_dir}/demo_data/cup/mesh/mesh_scaled.obj')
     parser.add_argument('--est_refine_iter', type=int, default=5)
     parser.add_argument('--track_refine_iter', type=int, default=5)
-    parser.add_argument('--debug', type=int, default=3)
+    parser.add_argument('--debug', type=int, default=1)
     parser.add_argument('--debug_dir', type=str, default=f'{code_dir}/debug')
     args = parser.parse_args()
 
@@ -157,9 +168,23 @@ if __name__ == '__main__':
                 pcd = toOpen3dCloud(xyz_map[valid], color[valid])
                 o3d.io.write_point_cloud(f'{debug_dir}/scene_complete.ply', pcd)
                 #view  point cloud
-                o3d.visualization.draw_geometries([pcd])
+                vis = o3d.visualization.VisualizerWithEditing()
+                vis.create_window()
+                vis.add_geometry(pcd)
+                vis.run()
+                vis.destroy_window()
 
-                pdb.set_trace()
+                # Get the selected points
+                picked_points = vis.get_picked_points()
+                point = picked_points[0]
+                loc_3d = np.asarray(pcd.points)[point]  # 3D location of the point
+            
+            if debug==1:
+                with open(f'{os.path.dirname(args.mesh_file)}/affordance_transform.json', 'r') as f:
+                        saved_transform = np.array(json.load(f))
+
+
+                # o3d.visualization.draw_geometries([pcd])
         else:
             pose = est.track_one(rgb=color, depth=depth, K=cam_K, iteration=args.track_refine_iter)
 
@@ -171,30 +196,45 @@ if __name__ == '__main__':
             center_pose = pose @ np.linalg.inv(to_origin)
             X_CO_fpose = center_pose
 
-            # aruco marker detection
-            corners, ids, rejectedImgPoints = cv2.aruco.detectMarkers(color, aruco_dict, parameters=parameters)
-            if ids is not None and marker_id in ids:
-                idx = np.where(ids==marker_id)
-                corners = np.array(corners)[idx]
-                ids = np.array(ids)[idx]
-                rvecs, tvecs, _ = cv2.aruco.estimatePoseSingleMarkers(corners, 0.025, K, distcoeffs)
-                # for i in range(len(rvecs)):
-                #     color = cv2.drawFrameAxes(color, K, distcoeffs, rvecs[i], tvecs[i], 0.05)
-
-                r = R.from_rotvec(np.array(rvecs[0]).flatten())
-                T_cam_marker = np.eye(4)
-                T_cam_marker[:3, 3] = np.array(tvecs).flatten()
-                T_cam_marker[:3, :3] = r.as_matrix()
-                X_CO_aruco = T_cam_marker
-                
-                # find transform from foundation pose to aruco marker
-                X_aruco_fpose = np.linalg.inv(X_CO_aruco) @ X_CO_fpose
-                if saved_transform is None:
-                    print('Transforming to aruco marker frame')
-                    pdb.set_trace()
-                    saved_transform = X_aruco_fpose
-   
             
+
+            # aruco marker detection
+            # corners, ids, rejectedImgPoints = cv2.aruco.detectMarkers(color, aruco_dict, parameters=parameters)
+            # if ids is not None and marker_id in ids:
+            #     idx = np.where(ids==marker_id)
+            #     corners = np.array(corners)[idx]
+            #     ids = np.array(ids)[idx]
+            #     rvecs, tvecs, _ = cv2.aruco.estimatePoseSingleMarkers(corners, 0.025, K, distcoeffs)
+            #     # for i in range(len(rvecs)):
+            #     #     color = cv2.drawFrameAxes(color, K, distcoeffs, rvecs[i], tvecs[i], 0.05)
+
+            #     r = R.from_rotvec(np.array(rvecs[0]).flatten())
+            #     T_cam_marker = np.eye(4)
+            #     T_cam_marker[:3, 3] = np.array(tvecs).flatten()
+            #     T_cam_marker[:3, :3] = r.as_matrix()
+            #     X_CO_aruco = T_cam_marker
+
+                
+            #     if debug >=3:
+
+            #         X_CO_aruco[:,3][:3] = loc_3d
+            #         # find transform from foundation pose to aruco marker
+            #         X_aruco_fpose = np.linalg.inv(X_CO_aruco) @ X_CO_fpose
+
+
+                    # if i>20:
+                    #     if saved_transform is None:
+                    #         print('Transforming to aruco marker frame')
+                    #         pdb.set_trace()
+                    #         # saved_transform = adjust_orientation_to_z_up(X_aruco_fpose)
+                    #         saved_transform = X_aruco_fpose
+                    #         # save pose to json in the location of the mesh file
+                    #         with open(f'{os.path.dirname(args.mesh_file)}/affordance_transform.json', 'w') as f:
+                    #             json.dump(saved_transform.tolist(), f)
+                            
+
+
+                
             if saved_transform is not None:
                 center_pose = center_pose @ np.linalg.inv(saved_transform)
 

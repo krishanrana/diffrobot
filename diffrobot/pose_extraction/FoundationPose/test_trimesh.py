@@ -4,13 +4,13 @@ from mpl_toolkits.mplot3d.art3d import Poly3DCollection
 import numpy as np
 
 # Load the original mesh
-mesh_path = '/home/krishan/work/2024/repos/FoundationPose/demo_data/cup/mesh/mesh.obj'
+mesh_path = '/home/krishan/work/2024/repos/diffrobot/diffrobot/pose_extraction/FoundationPose/demo_data/saucer/mesh/mesh.obj'
 
 original_mesh = trimesh.load(mesh_path)
 
 # Scale the mesh to 7% of its original size
 scaled_mesh = original_mesh.copy()
-scaling_factor = 0.07 # 7 for cup; 11 for teapot
+scaling_factor = 0.07 # 7 for cup; 11 for teapot; 7 for all others
 scaled_mesh.apply_scale(scaling_factor)
 
 scaled_mesh_path = mesh_path.replace('.obj', '_scaled.obj')
