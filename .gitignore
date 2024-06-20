@@ -1,8 +1,9 @@
 
 diffrobot/diffusion_policy/wandb/
+diffrobot/pose_extraction/FoundationPose/weights/
 diffrobot/data/
 diffrobot/diffusion_policy/runs/
-diffrobot/pose_extraction/
+diffrobot/pose_extraction/models/
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
