@@ -46,7 +46,6 @@ if __name__ == '__main__':
 
     # Start streaming
     profile = pipeline.start(config)
-
     color_stream = profile.get_stream(rs.stream.color)
     intrinsics = color_stream.as_video_stream_profile().get_intrinsics()
 
@@ -82,7 +81,7 @@ if __name__ == '__main__':
 
     parser = argparse.ArgumentParser()
     code_dir = os.path.dirname(os.path.realpath(__file__))
-    parser.add_argument('--mesh_file', type=str, default=f'{code_dir}/demo_data/cup/mesh/mesh_scaled.obj')
+    parser.add_argument('--mesh_file', type=str, default=f'{code_dir}/demo_data/teaspoon/mesh/mesh_scaled.obj')
     parser.add_argument('--est_refine_iter', type=int, default=5)
     parser.add_argument('--track_refine_iter', type=int, default=5)
     parser.add_argument('--debug', type=int, default=1)
@@ -110,7 +109,7 @@ if __name__ == '__main__':
     # aruco marker detector
     aruco_dict = cv2.aruco.Dictionary_get(cv2.aruco.DICT_4X4_250)
     parameters = cv2.aruco.DetectorParameters_create()
-    marker_id = 3
+    marker_id = 8
 
     saved_transform = None
 
@@ -181,7 +180,8 @@ if __name__ == '__main__':
             
             if debug==1:
                 with open(f'{os.path.dirname(args.mesh_file)}/affordance_transform.json', 'r') as f:
-                        saved_transform = np.array(json.load(f))
+                       saved_transform = np.array(json.load(f))
+             
 
 
                 # o3d.visualization.draw_geometries([pcd])
@@ -199,38 +199,38 @@ if __name__ == '__main__':
             
 
             # aruco marker detection
-            # corners, ids, rejectedImgPoints = cv2.aruco.detectMarkers(color, aruco_dict, parameters=parameters)
-            # if ids is not None and marker_id in ids:
-            #     idx = np.where(ids==marker_id)
-            #     corners = np.array(corners)[idx]
-            #     ids = np.array(ids)[idx]
-            #     rvecs, tvecs, _ = cv2.aruco.estimatePoseSingleMarkers(corners, 0.025, K, distcoeffs)
-            #     # for i in range(len(rvecs)):
-            #     #     color = cv2.drawFrameAxes(color, K, distcoeffs, rvecs[i], tvecs[i], 0.05)
+            corners, ids, rejectedImgPoints = cv2.aruco.detectMarkers(color, aruco_dict, parameters=parameters)
+            if ids is not None and marker_id in ids:
+                idx = np.where(ids==marker_id)
+                corners = np.array(corners)[idx]
+                ids = np.array(ids)[idx]
+                rvecs, tvecs, _ = cv2.aruco.estimatePoseSingleMarkers(corners, 0.025, K, distcoeffs)
+                # for i in range(len(rvecs)):
+                #     color = cv2.drawFrameAxes(color, K, distcoeffs, rvecs[i], tvecs[i], 0.05)
 
-            #     r = R.from_rotvec(np.array(rvecs[0]).flatten())
-            #     T_cam_marker = np.eye(4)
-            #     T_cam_marker[:3, 3] = np.array(tvecs).flatten()
-            #     T_cam_marker[:3, :3] = r.as_matrix()
-            #     X_CO_aruco = T_cam_marker
+                r = R.from_rotvec(np.array(rvecs[0]).flatten())
+                T_cam_marker = np.eye(4)
+                T_cam_marker[:3, 3] = np.array(tvecs).flatten()
+                T_cam_marker[:3, :3] = r.as_matrix()
+                X_CO_aruco = T_cam_marker
 
                 
-            #     if debug >=3:
+                if debug >=3:
 
-            #         X_CO_aruco[:,3][:3] = loc_3d
-            #         # find transform from foundation pose to aruco marker
-            #         X_aruco_fpose = np.linalg.inv(X_CO_aruco) @ X_CO_fpose
+                    X_CO_aruco[:,3][:3] = loc_3d
+                    # find transform from foundation pose to aruco marker
+                    X_aruco_fpose = np.linalg.inv(X_CO_aruco) @ X_CO_fpose
 
 
-                    # if i>20:
-                    #     if saved_transform is None:
-                    #         print('Transforming to aruco marker frame')
-                    #         pdb.set_trace()
-                    #         # saved_transform = adjust_orientation_to_z_up(X_aruco_fpose)
-                    #         saved_transform = X_aruco_fpose
-                    #         # save pose to json in the location of the mesh file
-                    #         with open(f'{os.path.dirname(args.mesh_file)}/affordance_transform.json', 'w') as f:
-                    #             json.dump(saved_transform.tolist(), f)
+                    if i>20:
+                        if saved_transform is None:
+                            print('Transforming to aruco marker frame')
+                            pdb.set_trace()
+                            # saved_transform = adjust_orientation_to_z_up(X_aruco_fpose)
+                            saved_transform = X_aruco_fpose
+                            # save pose to json in the location of the mesh file
+                            with open(f'{os.path.dirname(args.mesh_file)}/affordance_transform.json', 'w') as f:
+                                json.dump(saved_transform.tolist(), f)
                             
 
 
