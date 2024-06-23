@@ -1,0 +1,12 @@
+# Created by Polycam
+# object name: 23_06_2024
+newmtl 23_06_2024_0
+Ka 0.000 0.000 0.000
+Kd 1.000 1.000 1.000
+Ks 0.000 0.000 0.000
+Tr 0.000000
+illum 1
+Ns 1.000000
+map_Kd 23_06_2024_2_c4Dq3XX6.jpg
+normal 23_06_2024_0_c4Dq3XX6.jpg
+map_ao 23_06_2024_1_c4Dq3XX6.jpg

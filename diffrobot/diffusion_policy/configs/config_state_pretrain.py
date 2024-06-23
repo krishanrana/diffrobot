@@ -1,10 +1,10 @@
 import torch
 
-dataset_path = "/home/krishan/work/2024/datasets/saucer_10_demos_FINAL" # TODO: DID YOU UPDATE THE SYMETRIC FLAG BELOW?
+dataset_path = "/home/krishan/work/2024/datasets/cup_video_demo_3" # TODO: DID YOU UPDATE THE SYMETRIC FLAG BELOW?
 action_frame = 'object_centric' # 'global' or 'object_centric' or 'ee_centric'
 
 
-symmetric = True
+symmetric = False
 transformed_affordance = False
 transformed_ee = False
 oriented_frame = True
@@ -45,7 +45,7 @@ num_diffusion_iters = 50
 
 batch_size = 256 #128
 num_workers = 11
-num_epochs = 4500
+num_epochs = 8500
 
 lr = 1e-4
 lr_scheduler_profile = 'cosine'

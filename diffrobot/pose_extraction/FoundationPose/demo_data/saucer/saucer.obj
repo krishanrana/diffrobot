@@ -1,6 +1,6 @@
 # Blender 4.1.1
 # www.blender.org
-mtllib mesh_scaled.mtl
+mtllib saucer.mtl
 o 23_06_2024.001
 v -0.042482 -0.000437 -0.029105
 v -0.043074 -0.000048 -0.028277
