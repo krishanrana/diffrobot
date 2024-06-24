@@ -15,7 +15,7 @@ import collections
 
 
 # dataset_path = "/home/krishan/work/2024/datasets/cup_10_demos_again"
-dataset_path = "/home/krishan/work/2024/datasets/teaspoon_scoop_video_demo_1"
+dataset_path = "/home/krishan/work/2024/datasets/teaspoon_scoop_video_demo_2"
 dutils = DatasetUtils(dataset_path)
 rlds, stats = dutils.create_rlds(num_noisy_variations=0, transformed_affordance=False, transformed_ee=False)
 env = RobotViz()

@@ -1,10 +1,10 @@
 import torch
 
-dataset_path = "/home/krishan/work/2024/datasets/teaspoon_scoop_video_demo_1" # TODO: DID YOU UPDATE THE SYMETRIC FLAG BELOW?
+dataset_path = "/home/krishan/work/2024/datasets/teaspoon_scoop_video_demo_2" # TODO: DID YOU UPDATE THE SYMETRIC FLAG BELOW?
 action_frame = 'object_centric' # 'global' or 'object_centric' or 'ee_centric'
 
 
-symmetric = False
+symmetric = True # this should actually be if there is a goal orientation or not
 transformed_affordance = False
 transformed_ee = False
 oriented_frame = True
