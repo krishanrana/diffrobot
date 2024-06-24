@@ -1,6 +1,6 @@
 import torch
 
-dataset_path = "/home/krishan/work/2024/datasets/cup_video_demo_3" # TODO: DID YOU UPDATE THE SYMETRIC FLAG BELOW?
+dataset_path = "/home/krishan/work/2024/datasets/teaspoon_scoop_video_demo_1" # TODO: DID YOU UPDATE THE SYMETRIC FLAG BELOW?
 action_frame = 'object_centric' # 'global' or 'object_centric' or 'ee_centric'
 
 
@@ -38,7 +38,7 @@ obs_dim = low_dim
 action_dim = 11 # 3 for position, 1 for progress
 pred_horizon = 16
 obs_horizon = 3
-action_horizon = 8
+action_horizon = 16
 global_cond_dim = (obs_dim*obs_horizon)
 
 num_diffusion_iters = 50

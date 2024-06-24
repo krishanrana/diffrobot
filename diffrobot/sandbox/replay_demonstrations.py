@@ -15,9 +15,9 @@ import collections
 
 
 # dataset_path = "/home/krishan/work/2024/datasets/cup_10_demos_again"
-dataset_path = "/home/krishan/work/2024/datasets/teapot_place_wednesday_10"
+dataset_path = "/home/krishan/work/2024/datasets/saucer_video_demo_push_down"
 dutils = DatasetUtils(dataset_path)
-rlds, stats = dutils.create_rlds(num_noisy_variations=0, transformed_affordance=False, transformed_ee=True)
+rlds, stats = dutils.create_rlds(num_noisy_variations=0, transformed_affordance=False, transformed_ee=False)
 env = RobotViz()
 
 # policy_name = 'twilight-dawn-164_state'
@@ -37,8 +37,8 @@ with open(camera_calibration_path, "r") as f:
 
 
 
-X_OA_ee_path = os.path.join(dataset_path, "transforms", "ee_transform.json")
-X_OA_ee = json.load(open(X_OA_ee_path, "r"))['X_OA']
+# X_OA_ee_path = os.path.join(dataset_path, "transforms", "ee_transform.json")
+# X_OA_ee = json.load(open(X_OA_ee_path, "r"))['X_OA']
 
 
 
@@ -50,8 +50,8 @@ for episode in rlds:
     # if episode % 10 != 0:
     #     continue
 
-    X_B_O2_path = os.path.join(dataset_path, "episodes", str(episode), "secondary_affordance_frames.json")
-    secondary_object_data = json.load(open(X_B_O2_path, "r"))
+    # X_B_O2_path = os.path.join(dataset_path, "episodes", str(episode), "secondary_affordance_frames.json")
+    # secondary_object_data = json.load(open(X_B_O2_path, "r"))
 
 
     # obs_deque = collections.deque(maxlen=3)
@@ -79,12 +79,12 @@ for episode in rlds:
 
 
             # recover X_BE
-            X_OA = X_OA_ee
-            X_B_O2 = np.array(secondary_object_data[idx]['X_BO'])
-            X_BA = X_B_O2 @ X_OA
-            if X_AE is None:
-                X_AE = np.linalg.inv(X_BA) @ X_BE_gello.A
-            X_BE_recovered = X_BE @ X_AE
+            # X_OA = X_OA_ee
+            # X_B_O2 = np.array(secondary_object_data[idx]['X_BO'])
+            # X_BA = X_B_O2 @ X_OA
+            # if X_AE is None:
+            #     X_AE = np.linalg.inv(X_BA) @ X_BE_gello.A
+            # X_BE_recovered = X_BE @ X_AE
 
 
             # obs = {"X_BE": X_BE, 
@@ -107,8 +107,8 @@ for episode in rlds:
             
 
             print('Progress: ', phase_data['progress'][idx]*100, '%')
-            # env.object_pose.T = sm.SE3(X_BA, check=False).norm()
-            env.policy_pose.T = sm.SE3(X_BE_gello, check=False).norm()
+            env.object_pose.T = sm.SE3(X_B_O1, check=False).norm()
+            env.policy_pose.T = sm.SE3(X_BE_leader, check=False).norm()
             env.cup_handle.T = sm.SE3(X_BE, check=False).norm()
             env.step(phase_data['gello_q'][idx])
             # env.step(phase_data['gello_q'][idx], robot_q_recovered[0])

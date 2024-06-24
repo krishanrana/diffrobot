@@ -81,10 +81,10 @@ if __name__ == '__main__':
 
     parser = argparse.ArgumentParser()
     code_dir = os.path.dirname(os.path.realpath(__file__))
-    parser.add_argument('--mesh_file', type=str, default=f'{code_dir}/demo_data/saucer/mesh/mesh_scaled.obj')
+    parser.add_argument('--mesh_file', type=str, default=f'{code_dir}/demo_data/teaspoon/mesh/mesh_scaled.obj')
     parser.add_argument('--est_refine_iter', type=int, default=5)
     parser.add_argument('--track_refine_iter', type=int, default=5)
-    parser.add_argument('--debug', type=int, default=1)
+    parser.add_argument('--debug', type=int, default=3)
     parser.add_argument('--debug_dir', type=str, default=f'{code_dir}/debug')
     args = parser.parse_args()
 
@@ -109,7 +109,7 @@ if __name__ == '__main__':
     # aruco marker detector
     aruco_dict = cv2.aruco.Dictionary_get(cv2.aruco.DICT_4X4_250)
     parameters = cv2.aruco.DetectorParameters_create()
-    marker_id = 10
+    marker_id = 4
 
     saved_transform = None
 
