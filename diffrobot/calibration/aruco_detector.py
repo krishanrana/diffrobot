@@ -57,6 +57,7 @@ class ArucoDetector:
         # corners, ids, rejectedImgPoints = aruco.detectMarkers(gray, aruco_dict, parameters=parameters)
         if ids is None:
             return {}
+        print(f"detected ids: {ids}")
         return {_id[0]: [_corners] for _id, _corners in zip(ids, corners)}
 
     def detect_all_markers(self):
@@ -100,33 +101,10 @@ class ArucoDetector:
     def estimate_pose(self, detected_markers, marker_id):
 
         if len(detected_markers) == 0 or marker_id not in detected_markers:
-            # print("no marker detected")
-            # code to show 'No Ids' when no markers are found
-            # if self.visualize:
-            #     cv2.putText(rgb, "No Ids", (0, 64), FONT, 1, (0, 255, 0), 2, cv2.LINE_AA)
-            #     cv2.imshow("win2", rgb[:, :, ::-1])
-            #     cv2.waitKey(1)
-
             return None
 
         corners = detected_markers[marker_id]
-        # estimate pose of each marker and return the values
-        # rvet and tvec-different from camera coefficients
-        # rvec, tvec, _ = aruco.estimatePoseSingleMarkers(corners, self.marker_size, self.camera_matrix, self.dist_coeffs)
         rvec, tvec, _ = estimatePoseSingleMarkers(corners, self.marker_size, self.camera_matrix, self.dist_coeffs)
-        # (rvec-tvec).any() # get rid of that nasty numpy value array error
-
-        # if self.visualize:
-        #     cv2.drawFrameAxes(rgb, self.camera_matrix, self.dist_coeffs, rvec[0], tvec[0], 0.1)
-        #     # draw a square around the markers
-        #     aruco.drawDetectedMarkers(rgb, corners)
-
-        #     cv2.putText(rgb, f"Id: {marker_id}", (0, 64), FONT, 1, (0, 255, 0), 2, cv2.LINE_AA)
-        #     print(f"marker detected with marker_id {marker_id}")
-        #     #
-        #     cv2.imshow("win2", rgb[:, :, ::-1])
-        #     cv2.waitKey(1)
-
         r = R.from_rotvec(np.array(rvec[0]).flatten())
         T_cam_marker = np.eye(4)
         T_cam_marker[:3, 3] = np.array(tvec).flatten()

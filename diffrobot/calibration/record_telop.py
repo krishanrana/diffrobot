@@ -1,4 +1,4 @@
-from teleop import Teleop
+from diffrobot.teleoperation.teleop import Teleop
 from dataclasses import dataclass
 from pathlib import Path
 import tyro

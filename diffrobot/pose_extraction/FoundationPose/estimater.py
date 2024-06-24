@@ -7,11 +7,11 @@
 # license agreement from NVIDIA CORPORATION is strictly prohibited.
 
 
-from Utils import *
-from datareader import *
+from diffrobot.pose_extraction.FoundationPose.Utils import *
+from diffrobot.pose_extraction.FoundationPose.datareader import *
 import itertools
-from learning.training.predict_score import *
-from learning.training.predict_pose_refine import *
+from diffrobot.pose_extraction.FoundationPose.learning.training.predict_score import *
+from diffrobot.pose_extraction.FoundationPose.learning.training.predict_pose_refine import *
 import yaml
 
 

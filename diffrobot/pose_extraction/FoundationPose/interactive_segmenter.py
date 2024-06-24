@@ -1,13 +1,16 @@
 import numpy as np
+import os
 import matplotlib.pyplot as plt
 from PIL import Image
 from segment_anything import sam_model_registry, SamPredictor
 import cv2
+import pdb
 
 class InteractiveSegmenter:
     def __init__(self):
         device='cuda'
-        sam_checkpoint = "weights/sam_vit_h_4b8939.pth"
+        self.current_dir = os.path.dirname(__file__)
+        sam_checkpoint = os.path.join(self.current_dir, "weights", "sam_vit_h_4b8939.pth")
         model_type = "vit_h"
         self.device = device
         self.sam = sam_model_registry[model_type](checkpoint=sam_checkpoint)
@@ -43,7 +46,7 @@ class InteractiveSegmenter:
             fig.canvas.draw()
             print(f"Recorded coordinate: (x={x}, y={y})")
 
-    def interactive_coordinate_recorder(self, image, size):
+    def interactive_coordinate_recorder(self, image, size, obj_name):
         self.coordinates = []  # Reset the coordinates
         fig, ax = plt.subplots()
 
@@ -55,13 +58,13 @@ class InteractiveSegmenter:
         ax.imshow(image)
         # Connect the click event to the on_click function
         cid = fig.canvas.mpl_connect('button_press_event', lambda event: self.on_click(event, ax, fig))
-        plt.title('Click on the image to record points for SAM')
+        plt.title(f'Click on the image to record points for {obj_name}')
         plt.show()
 
-    def segment_image(self, image):        
+    def segment_image(self, image, obj_name):        
         # Interactive coordinate recorder
         size = (image.shape[1], image.shape[0])
-        self.interactive_coordinate_recorder(image, size)
+        self.interactive_coordinate_recorder(image, size, obj_name)
         coordinates = np.array(self.coordinates)
         print("Coordinates:", coordinates)
 

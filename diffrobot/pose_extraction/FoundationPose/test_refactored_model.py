@@ -19,9 +19,6 @@ class MultiObjectTracker:
         self.estimators = {}
         self.pose_dict = {}
         self.setup_estimators()
-        self.current_rgb_frame = None
-        self.current_depth_frame = None
-        self.current_poses = None
 
     def setup_camera(self):
         self.pipeline = rs.pipeline()
@@ -127,7 +124,7 @@ class MultiObjectTracker:
             to_origin = data["to_origin"]
 
             print(f"Please select the mask points for {obj} in the image")
-            mask = self.segmenter.segment_image(color, obj)[0]
+            mask = self.segmenter.segment_image(color)[0]
             pose = est.register(K=K, rgb=color, depth=depth, ob_mask=mask, iteration=data["est_refine_iter"])
 
             center_pose = pose @ np.linalg.inv(to_origin)
@@ -138,7 +135,7 @@ class MultiObjectTracker:
         color, depth, K = self.get_model_inputs()
         if color is None or depth is None:
             return
-        
+
         for obj in track_objects_list:
             if obj in self.estimators:
                 data = self.estimators[obj]
@@ -149,14 +146,7 @@ class MultiObjectTracker:
                 center_pose = pose @ np.linalg.inv(to_origin)
                 center_pose = center_pose @ np.linalg.inv(data["saved_transform"])
                 self.pose_dict[obj] = center_pose
-
-        self.current_rgb_frame = color
-        self.current_depth_frame = depth
-        self.current_poses = self.pose_dict
-
         return color
-        
-        
     
     def visualize_poses(self, color):
         vis = color.copy()

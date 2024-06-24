@@ -1,5 +1,5 @@
 import panda_py
-from dynamixel.robot import DynamixelRobot
+from diffrobot.dynamixel.robot import DynamixelRobot
 import numpy as np
 from panda_py import controllers
 import reactivex as rx
@@ -10,7 +10,7 @@ class Teleop:
 	def __init__(self, hostname: str = "172.16.0.2"):
 		self.panda = panda_py.Panda(hostname)
 		self.gello = create_gello()
-		self.home_q = np.deg2rad([-90, 0, 0, -90, 0, 90, 45])
+		self.home_q = np.deg2rad([0, 0, 0, -90, 0, 90, 45])
 		self.stop_requested = False
 		self.create_gello_streams()
 	
@@ -84,9 +84,9 @@ def create_gello() -> DynamixelRobot:
 				real=True,
 				joint_ids=(1, 2, 3, 4, 5, 6, 7),
 				joint_offsets=(
-					5 * np.pi / 2,
+					1 * np.pi / 2,
 					2 * np.pi / 2,
-					0 * np.pi / 2,
+					4 * np.pi / 2,
 					2 * np.pi / 2,
 					2 * np.pi / 2,
 					2 * np.pi / 2 + np.pi/8,

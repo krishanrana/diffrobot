@@ -397,11 +397,15 @@ class DiffusionPolicy():
     def process_inference_state(self, obs_deque):
 
         X_B_OO = obs_deque[0]['X_B_OO']
+        X_BO = obs_deque[0]['X_BO']
         gripper_state = [o['gripper_state'] for o in obs_deque]
 
         if self.params.action_frame == 'object_centric':
-            ee_pose = [np.dot(np.linalg.inv(X_B_OO), o['X_BE']) for o in obs_deque] # X_OO_E
-            # ee_pose = [np.dot(np.linalg.inv(X_BO), o['X_BE']) for o in obs_deque] # X_OE
+            if self.params.oriented_frame:
+                ee_pose = [np.dot(np.linalg.inv(X_B_OO), o['X_BE']) for o in obs_deque] # X_OO_E
+            else:
+                ee_pose = [np.dot(np.linalg.inv(X_BO), o['X_BE']) for o in obs_deque] # X_OE
+
             object_pose = [o['X_OO_O'] for o in obs_deque] # object pose in oriented frame
             
         elif self.params.action_frame == 'global':
@@ -422,9 +426,9 @@ class DiffusionPolicy():
         if self.params.action_frame != 'e2e':
 
             ee_pos = [x[:3,3] for x in ee_pose]
-            ee_orien = [matrix_to_rotation_6d(x[:3,:3]) for x in ee_pose]
+            ee_orien = [matrix_to_rotation_6d(x[:3,:3]).detach().cpu().numpy() for x in ee_pose]
             object_pos =  [x[:3,3] for x in object_pose]
-            object_orien = [matrix_to_rotation_6d(x[:3,:3]) for x in object_pose]
+            object_orien = [matrix_to_rotation_6d(x[:3,:3]).detach().cpu().numpy() for x in object_pose]
 
         # normalize data
 
@@ -600,9 +604,10 @@ class DiffusionPolicy():
             X_B_OO = obs_deque[0]['X_B_OO'].A
             # X_BE = np.array([np.dot(X_BO, X_OE) for X_OE in action])
 
-
-            X_BE = [X_B_OO @ X_OOE for X_OOE in action]
-            # X_BE = [X_BO @ X_OE for X_OE in action]
+            if self.params.oriented_frame:
+                X_BE = [X_B_OO @ X_OOE for X_OOE in action]
+            else:
+                X_BE = [X_BO @ X_OE for X_OE in action]
 
             # X_BE = action
 

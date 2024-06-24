@@ -7,18 +7,18 @@ import json
 from scipy.optimize import least_squares
 from multiprocessing.managers import SharedMemoryManager
 
-from robot.robot import Robot, pos_orn_to_matrix, matrix_to_pos_orn
-from calibration.cal_utils import quat_to_euler, euler_to_quat
-from realsense.single_realsense import SingleRealsense
-from calibration.aruco_detector import ArucoDetector, aruco
+from diffrobot.robot.robot import Robot, pos_orn_to_matrix, matrix_to_pos_orn
+from diffrobot.calibration.cal_utils import quat_to_euler, euler_to_quat
+from diffrobot.realsense.single_realsense import SingleRealsense
+from diffrobot.calibration.aruco_detector import ArucoDetector, aruco
 from pathlib import Path
 
 @dataclass
 class Params:
-    path: Path
-    name: str
-    serial: str
-    marker_id: int = 9
+    path: Path = Path('recorded_poses/poses.json')
+    name: str = 'static_front_cam'
+    serial: str = '035122250692'
+    marker_id: int = 8
 
 def compute_residuals_static_cam(x, T_robot_tcp, T_cam_marker):
     m_tcp = np.array([*x[6:], 1])
@@ -63,7 +63,8 @@ def detect_marker_from_trajectory(robot: Robot, qs, marker_detector:ArucoDetecto
         q = np.array(q)
         robot.move_to_joints(q)
         time.sleep(0.1)
-        marker_pose = marker_detector.estimate_pose()
+        detected_markers = marker_detector.detect_markers_from_camera()
+        marker_pose = marker_detector.estimate_pose(detected_markers=detected_markers, marker_id=8)
         if marker_pose is not None:
             valid_tcp_poses.append(robot.get_tcp_pose())
             marker_poses.append(marker_pose)
@@ -98,10 +99,10 @@ if __name__ == "__main__":
     print(X_WV)
 
     res = {
-        "X_WV": X_WV.tolist(),
+        "X_BC": X_WV.tolist(),
     }
 
-    with open(f"data/camera_calibration/{params.name}_static.json", "w") as f:
+    with open(f"calibration_data/{params.name}.json", "w") as f:
         json.dump(res, f)
 
     X_WE = robot.get_tcp_pose()

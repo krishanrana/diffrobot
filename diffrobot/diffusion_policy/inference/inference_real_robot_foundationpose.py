@@ -24,15 +24,53 @@ from diffrobot.pose_extraction.FoundationPose.multi_object_tracker import MultiO
 
 import pdb
 import spatialmath as sm
+import gc
+
+import threading
+import queue
+
+def clear_cuda_memory():
+    # Clear cache
+    torch.cuda.empty_cache()
+    # Force garbage collection
+    gc.collect()
 
 
-def read_X_BF(s) -> np.ndarray:
-    import spatialmath as sm # for poses
-    X_BE = np.array(s.O_T_EE).reshape(4, 4).astype(np.float32).T
-    X_FE = np.array(s.F_T_EE).reshape(4, 4).astype(np.float32).T
-    X_EF = np.linalg.inv(X_FE)
-    X_BF = X_BE @ X_EF 
-    return X_BF
+class DataLogger:
+    def __init__(self, path: str):
+        self.path = path
+        self.data_queue = queue.Queue()
+        self.rgb = np.zeros((2000, 480, 640, 3), dtype=np.uint8)
+        self.depth = np.zeros((2000, 480, 640), dtype=np.uint16)
+        self.poses = []
+        self.actions = []
+        self.stop_logging = threading.Event()
+        self.logging_thread = threading.Thread(target=self._save_data_thread)
+        self.logging_thread.start()
+
+    def log_data(self, data):
+        self.data_queue.put(data)
+    
+    def _save_data_thread(self):
+        while not self.stop_logging.is_set():
+            try:
+                data = self.data_queue.get(timeout=1)
+                self._save_data(data)
+            except queue.Empty:
+                continue
+
+    def _save_data(self, data):
+        frame_idx = len(self.poses)
+        self.rgb[frame_idx] = data['rgb']
+        self.depth[frame_idx] = data['depth']
+        self.poses.append(data['pose'])
+        self.actions.append(data['action'])
+    
+    def save_data(self):
+        self.stop_logging.set()
+        self.logging_thread.join()
+        np.savez(self.path, rgb=self.rgb, depth=self.depth, poses=self.poses, actions=self.actions)
+
 
 @dataclass
 class ManipObject:
@@ -102,97 +140,97 @@ class Task:
 
 
 class MakeTeaFullTask(Task):
-    def __init__(self, cup:ManipObject, saucer:ManipObject, teapot:ManipObject, spoon:ManipObject, **kwargs):
+    def __init__(self, teacup:ManipObject, saucer:ManipObject, teapot:ManipObject, teaspoon:ManipObject, **kwargs):
         super().__init__('make_tea', **kwargs)
         self.objects = {
-            'cup': cup,
+            'teacup': teacup,
             'sauce': saucer,
             'teapot': teapot,
-            'spoon': spoon,
+            'teaspoon': teaspoon,
         }
 
 
-class CupRotate(Task):
-    def __init__(self, cup:ManipObject, **kwargs):
-        super().__init__('cup_rotate', **kwargs)
+class TeacupRotate(Task):
+    def __init__(self, teacup:ManipObject, **kwargs):
+        super().__init__('teacup_rotate', **kwargs)
         self.objects = {
-            'cup': cup,
+            'teacup': teacup,
         }
     
 
 class PlaceSaucer(Task):
-    def __init__(self, saucer:ManipObject, cup:ManipObject, **kwargs):
+    def __init__(self, saucer:ManipObject, teacup:ManipObject, **kwargs):
         super().__init__('place_saucer', **kwargs)
         self.objects = {
             'saucer': saucer,
-            'cup': cup,
+            'teacup': teacup,
         }
 
 
 class TeapotRotate(Task):
-    def __init__(self, cup: ManipObject, teapot: ManipObject, **kwargs):
+    def __init__(self, teacup: ManipObject, teapot: ManipObject, **kwargs):
         super().__init__('teapot_rotate', **kwargs)
         self.objects = {
-            'cup': cup,
+            'teacup': teacup,
             'teapot': teapot,
         }
 
 
 class TeapotPour(Task):
-    def __init__(self, cup: ManipObject, **kwargs):
+    def __init__(self, teacup: ManipObject, **kwargs):
         super().__init__('teapot_pour', **kwargs)
         self.objects = {
-            'cup': cup,
+            'teacup': teacup,
         }
 
 
 class TeapotPlace(Task):
-    def __init__(self, cup: ManipObject, teapot: ManipObject, **kwargs):
+    def __init__(self, teacup: ManipObject, teapot: ManipObject, **kwargs):
         super().__init__('teapot_place', **kwargs)
         self.objects = {
-            'cup': cup,
+            'teacup': teacup,
             'teapot': teapot
         }
 
-class PickSpoon(Task):
-    def __init__(self, spoon: ManipObject, **kwargs):
-        super().__init__('pick_spoon', **kwargs)
+class PickTeaspoon(Task):
+    def __init__(self, teaspoon: ManipObject, **kwargs):
+        super().__init__('pick_teaspoon', **kwargs)
         self.objects = {
-            'spoon': spoon,
+            'teaspoon': teaspoon,
         }
         
 
-class StirSpoon(Task):
-    def __init__(self, cup: ManipObject, **kwargs):
-        super().__init__('stir_spoon', **kwargs)
+class StirTeaspoon(Task):
+    def __init__(self, teacup: ManipObject, **kwargs):
+        super().__init__('stir_teaspoon', **kwargs)
         self.objects = {
-            'cup': cup,
+            'teacup': teacup,
         }
 
         
-
-
-
 class PerceptionSystem:
-    def __init__(self):
-        self.cams = MultiRealsense(
-            serial_numbers=['128422271784', '123622270136'],
-            resolution=(640,480),
-        )
-        with open(f'../runs/transforms/hand_eye.json', 'r') as f:
-            trans = json.load(f)
-            self.X_EC_b = np.array(trans['X_EC_b'])
-            self.X_EC_f = np.array(trans['X_EC_f'])
+    def __init__(self, robot):
+        self.X_BC = self.get_camera_pose(robot, load_transform=True)
+        objects = ["teacup" ,"saucer", "teapot", "teaspoon"]
+        self.tracker = MultiObjectTracker(objects)
     
     def start(self):
-        self.cams.start()
-        self.cams.set_exposure(exposure=5000, gain=60)
-        time.sleep(1.0)
-        self.marker_detector_front = ArucoDetector(self.cams.cameras['123622270136'], 0.025, aruco.DICT_4X4_50, marker_id=None, visualize=False)
-        self.marker_detector_back = ArucoDetector(self.cams.cameras['128422271784'], 0.025, aruco.DICT_4X4_50, marker_id=None, visualize=False)
+        self.tracker.register_objects()
     
     def stop(self):
-        self.cams.stop()
+        self.tracker.pipeline.stop()
+        cv2.destroyAllWindows()
+
+    def get_camera_pose(self, robot, load_transform: bool = False):
+        # returns the external camera pose in the robot base frame
+
+        if load_transform:
+            with open(f'../../calibration/calibration_data/static_front_cam.json', 'r') as f:
+                X_BC_f = json.load(f)['X_BC']
+                return np.array(X_BC_f)
+
+
+    
 
 def create_robot(ip:str = "172.16.0.2", dynamic_rel: float=0.4):
     panda = Robot(ip)
@@ -207,91 +245,88 @@ def create_robot(ip:str = "172.16.0.2", dynamic_rel: float=0.4):
     return panda
 
 class MakeTeaTask:
-    def __init__(self, perception_system: PerceptionSystem, robot: Robot):
+    def __init__(self, perception_system: PerceptionSystem, robot: Robot, vis: bool = False):
         self.perception_system = perception_system
+        self.vis = vis
         self.robot = robot
         self.objects = {
             'base': ManipObject(name='base', aruco_key=None, X_BO_last_seen=np.eye(4), X_BO_reference=np.eye(4)), # 'base' is the robot's base frame
-            'cup': ManipObject(name='cup', aruco_key=3),
+            'teacup': ManipObject(name='teacup', aruco_key=3),
             'saucer': ManipObject(name='saucer', aruco_key=10),
             'teapot': ManipObject(name='teapot', aruco_key=4),
-            'spoon': ManipObject(name='spoon', aruco_key=8),
+            'teaspoon': ManipObject(name='teaspoon', aruco_key=8),
         }       
         self.sub_tasks : list[Task] = [
-            # MakeTeaFullTask(
-            #     policy_name= 'woven-tree-222_state',
-            #     progress_threshold=0.95,
-            #     cup=self.objects['cup'],
-            #     affordance_frame='cup',
-            #     oriented_frame_reference='base',
-            #     saucer=self.objects['saucer'],
-            #     teapot=self.objects['teapot'],
-            #     spoon=self.objects['spoon']),
-
-
-            CupRotate(
-                # policy_name = 'legendary-serenity-227_state',
-                policy_name= 'grateful-lion-168_state',  #'colorful-fire-216_state' ,#'dark-night-177_state', #'grateful-lion-168_state',
+            TeacupRotate(
+                policy_name = 'dry-sea-235_state',
+                #policy_name= 'grateful-lion-168_state',  #'colorful-fire-216_state' ,#'dark-night-177_state', #'grateful-lion-168_state',
                 oriented_frame_reference='base', 
-                progress_threshold= 0.95, #0.94,
-                affordance_frame='cup', 
-                cup=self.objects['cup']),
-            # PlaceSaucer(
-            #     policy_name= 'fancy-glade-228_state',
-            #     #policy_name= 'cosmic-universe-169_state', #'cosmic-universe-169_state', #'rich-brook-184_state',#'cosmic-universe-169_state', #'hopeful-tree-173_state',
-            #     oriented_frame_reference='cup', 
-            #     progress_threshold=0.86,
-            #     affordance_frame='saucer',
-            #     secondary_affordance_frame='cup',
-            #     transform_ee_frame=False, 
-            #     saucer=self.objects['saucer'],
-            #     cup=self.objects['cup']),
-            # TeapotRotate(
-            #     policy_name= 'dry-sky-157_state', #'morning-moon-217_state' ,#'noble-water-180_state',#'dry-sky-157_state',
-            #     oriented_frame_reference='base', 
-            #     affordance_frame='teapot',
-            #     progress_threshold=0.94, 
-            #     cup=self.objects['cup'], 
-            #     teapot=self.objects['teapot']),
-            # TeapotPour(
-            #     policy_name= 'dainty-bird-158_state', #'comic-pond-207_state', #'genial-night-181_state',#'dainty-bird-158_state',
-            #     oriented_frame_reference='teapot',
-            #     progress_threshold=0.85, 
-            #     affordance_frame='cup', 
-            #     cup=self.objects['cup']),
-            # TeapotPlace(
-            #     oriented_frame_reference='teapot',
-            #     secondary_affordance_frame='teapot',
-            #     policy_name= 'twilight-microwave-178_state', # 'good-sponge-208_state',#'hopeful-flower-182_state', #'twilight-microwave-178_state', #'pious-water-167_state', #'twilight-dawn-164_state',
-            #     progress_threshold=0.80,
-            #     affordance_frame='cup', 
-            #     cup=self.objects['cup'],
-            #     teapot=self.objects['teapot'],
-            #     transform_ee_frame=False),
-            # PickSpoon(
-            #     oriented_frame_reference='base', 
-            #     # policy_name= 'lively-haze-162_state',#'stilted-aardvark-209_state', #'charmed-tree-186_state',#'lively-haze-162_state',
-            #     policy_name= 'lively-haze-162_state', #'cerulean-donkey-214_state', #'stilted-aardvark-209_state', #'charmed-tree-186_state',#'lively-haze-162_state',
-            #     progress_threshold=0.90,
-            #     affordance_frame='spoon', 
-            #     spoon=self.objects['spoon']),
-            # StirSpoon(
-            #     oriented_frame_reference='cup',
+                progress_threshold= 0.88, #0.94,
+                affordance_frame='teacup', 
+                teacup=self.objects['teacup']),
+            PlaceSaucer(
+                policy_name= 'fancy-glade-228_state',
+                #policy_name= 'cosmic-universe-169_state', #'cosmic-universe-169_state', #'rich-brook-184_state',#'cosmic-universe-169_state', #'hopeful-tree-173_state',
+                oriented_frame_reference='teacup', 
+                progress_threshold=0.83,
+                affordance_frame='saucer',
+                secondary_affordance_frame='teacup',
+                transform_ee_frame=False, 
+                saucer=self.objects['saucer'],
+                teacup=self.objects['teacup']),
+            TeapotRotate(
+                policy_name= 'dry-sky-157_state', #'morning-moon-217_state' ,#'noble-water-180_state',#'dry-sky-157_state',
+                oriented_frame_reference='base', 
+                affordance_frame='teapot',
+                progress_threshold=0.92, 
+                teacup=self.objects['teacup'], 
+                teapot=self.objects['teapot']),
+            TeapotPour(
+                policy_name= 'dainty-bird-158_state', #'comic-pond-207_state', #'genial-night-181_state',#'dainty-bird-158_state',
+                oriented_frame_reference='teapot',
+                progress_threshold=0.84, 
+                affordance_frame='teacup', 
+                teacup=self.objects['teacup']),
+            TeapotPlace(
+                oriented_frame_reference='teapot',
+                secondary_affordance_frame='teapot',
+                policy_name= 'curious-music-239_state', # 'good-sponge-208_state',#'hopeful-flower-182_state', #'twilight-microwave-178_state', #'pious-water-167_state', #'twilight-dawn-164_state',
+                progress_threshold=0.80,
+                affordance_frame='teacup', 
+                teacup=self.objects['teacup'],
+                teapot=self.objects['teapot'],
+                transform_ee_frame=False),
+            PickTeaspoon(
+                oriented_frame_reference='base', 
+                # policy_name= 'lively-haze-162_state',#'stilted-aardvark-209_state', #'charmed-tree-186_state',#'lively-haze-162_state',
+                policy_name= 'eager-frost-240_state', #'cerulean-donkey-214_state', #'stilted-aardvark-209_state', #'charmed-tree-186_state',#'lively-haze-162_state',
+                progress_threshold=0.90,
+                affordance_frame='teaspoon', 
+                teaspoon=self.objects['teaspoon']),
+            # StirTeaspoon(
+            #     oriented_frame_reference='teacup',
             #     policy_name= 'usual-snow-165_state', #'vital-moon-212_state', #'helpful-waterfall-210_state',#'jumping-water-185_state' ,#'usual-snow-165_state',
             #     progress_threshold=0.92,
-            #     affordance_frame='cup', 
-            #     cup=self.objects['cup'],
+            #     affordance_frame='teacup', 
+            #     teacup=self.objects['teacup'],
             #     transform_affordance_frame=True),
         ]
 
         # FIND LAST POLICY LOADED
-        self.last_policy_idx = 0
+        self.last_policy_idx = -1
         for task in self.sub_tasks:
             if task.policy_name != "":
                 self.last_policy_idx += 1
             else:
                 break
         self.phase = 0
+
+        # initialize last seen objetc poses
+        for obj in self.perception_system.tracker.pose_dict.keys():
+            X_CO = self.perception_system.tracker.pose_dict[obj]
+            self.objects[obj].X_BO_last_seen = self.perception_system.X_BC @ X_CO
+
+
 
     def check_if_is_last_phase(self):
         return self.phase == self.last_policy_idx
@@ -327,36 +362,34 @@ class MakeTeaTask:
         assert X_BO is not None, f"Object {obj} has no reference pose"
         return X_BO
 
-    def detect_objects(self):
+    def detect_objects(self, vis=False):
         robot = self.robot
         p = self.perception_system
-        all_markers_front = p.marker_detector_front.detect_markers_from_camera()
-        all_markers_back = p.marker_detector_back.detect_markers_from_camera()
 
-        for obj_name, obj in self.objects.items():
-            marker_id = obj.aruco_key
-            if marker_id is None:
-                continue
-            X_CO_f = p.marker_detector_front.estimate_pose(detected_markers=all_markers_front, marker_id=marker_id)
-            X_CO_b = p.marker_detector_back.estimate_pose(detected_markers=all_markers_back, marker_id=marker_id)
+        obj_list = self.current_task().objects
+        im = p.tracker.track_objects_once(obj_list)
+        if vis:
+            p.tracker.visualize_poses(im)
 
-            s = robot.get_state()
-            X_BE = np.array(s.O_T_EE).reshape(4, 4).T
-
-            if X_CO_f is not None:
-                X_BC = X_BE @ p.X_EC_f
-                self.objects[obj_name].X_BO_last_seen = X_BC @ X_CO_f
-
-            if X_CO_b is not None:
-                X_BC = X_BE @ p.X_EC_b
-                self.objects[obj_name].X_BO_last_seen = X_BC @ X_CO_b
+        for obj in p.tracker.pose_dict.keys():
+            X_CO = p.tracker.pose_dict[obj]
+            self.objects[obj].X_BO_last_seen = p.X_BC @ X_CO
 
         self.current_task().new_detection_made()
+
+
     
+    def move_to_phase_start(self):
+        start_object = self.current_task().affordance_frame
+        start_object = self.objects[start_object]
+        X_BO = start_object.X_BO_last_seen
+        angle = np.arctan2(X_BO[1, 3], X_BO[0, 3])
+        robot.move_to_joints(np.deg2rad([np.rad2deg(angle), 0, 0, -90, 0, 90, 45]))
+
     def get_observation(self):
         s = self.robot.get_state()
         X_BE = np.array(s.O_T_EE).reshape(4,4).T
-        self.detect_objects()
+        self.detect_objects(vis=self.vis)
 
         if self.current_task().transform_ee_frame:
             X_EA = task.current_task().X_EA
@@ -382,15 +415,16 @@ class MakeTeaTask:
             X_BO, 
             task.current_oriented_frame_reference()
             )
+        
 
         X_OO_O = np.dot(np.linalg.inv(X_B_OO), X_BO) 
         # self.robot_visualiser.object_pose.T = self.X_BO
         return {"X_BE": X_BE, 
                 "X_BO": X_BO,
-                "X_BO_cup": self.objects['cup'].X_BO_last_seen,
+                "X_BO_teacup": self.objects['teacup'].X_BO_last_seen,
                 "X_BO_saucer": self.objects['saucer'].X_BO_last_seen,
                 "X_BO_teapot": self.objects['teapot'].X_BO_last_seen,
-                "X_BO_spoon": self.objects['spoon'].X_BO_last_seen,
+                "X_BO_teaspoon": self.objects['teaspoon'].X_BO_last_seen,
                 "X_B_OO": X_B_OO,
                 "X_OO_O": X_OO_O,
                 "gripper_state": robot.gripper.width(),
@@ -401,32 +435,12 @@ class MakeTeaTask:
     def detected_objects(self):
         return [obj for obj in self.objects.values() if obj.X_BO_last_seen is not None]
 
-    def search_for_objects(self):
-        # This function sweeps the arm across its workspace to search for the initial pose of all objects.
-        # These poses will be stored in the base frame of the robot.
-        # Once these poses are found, the robot will initiate the policy.
-
-        robot = self.robot
-        sweep_angles = np.linspace(0, 150, 8)
-        for sweep_angle in sweep_angles:
-            robot.move_to_joints(np.deg2rad([sweep_angle, 0, 0, -110, 0, 110, 45]))
-            self.detect_objects()
-            if len(self.detected_objects()) == len(self.objects):
-                break
-
-        # more above the cup
-        # compute sweep angle to go above the cup
-        # cup = self.objects['cup']
-        start_object = self.sub_tasks[0].affordance_frame
-        start_object = self.objects[start_object]
-        X_BO_cup = start_object.X_BO_last_seen
-        angle = np.arctan2(X_BO_cup[1, 3], X_BO_cup[0, 3])
-        robot.move_to_joints(np.deg2rad([np.rad2deg(angle), 0, 0, -110, 0, 110, 45]))
 
 
 class RobotInferenceController:
     def __init__(self, 
                 perception_system: PerceptionSystem,
+                data_logger: DataLogger,
                 robot: Robot,
                 task: MakeTeaTask,
                 ):
@@ -435,6 +449,7 @@ class RobotInferenceController:
         self.task = task
         self.robot_visualiser = RobotViz()
         self.setup_diffusion_policy()
+        self.data_logger = data_logger
 
 
     def setup_diffusion_policy(self):
@@ -483,12 +498,15 @@ class RobotInferenceController:
             policy = self.policies[task_name]
 
             out = policy.infer_action(self.obs_deque.copy())
+            
             action = out['action']
             action_gripper = out['action_gripper']
             progress = out['progress']
 
             X_BE = self.obs_deque[-1]["X_BE"]
 
+            # skip every second action 
+            action = action[::2]
 
             for i in range(len(action)):
                 current_task.set_progress(progress[i])
@@ -505,6 +523,8 @@ class RobotInferenceController:
 
                 g = action_gripper[i]
 
+                # print('Grasp Action:', g)
+
                 # print(f"Gripper Action: {action_gripper[-1]}, Allowing Gripper to Move: {task.current_task().gripper_allowed_to_move}")
                 if task.current_task().gripper_allowed_to_move:
                     res = False
@@ -515,10 +535,17 @@ class RobotInferenceController:
                     if res:
                         task.current_task().gripper_allowed_to_move = False 
                     
-                if progress[i] > current_task.progress_threshold:
+                    # check if task if pour
+                    if task.current_task().name == 'teapot_pour':
+                        res = True
+                    
+                if progress[i] > current_task.progress_threshold and res == True:
                     if task.check_if_is_last_phase():
                         print("Task Finished")
                         done = True
+                        # stop reactivex stream
+                        obs_stream.dispose()
+
                     else: 
                         print(f"Moving to next phase")
                         self.task.go_to_next_phase()
@@ -533,41 +560,51 @@ class RobotInferenceController:
                 # self.robot_visualiser.ee_pose.T = sm.SE3(X_BE, check=False).norm()	
                 # if X_EA is not None:
                     # self.robot_visualiser.ee_pose.T = X_BE 
-                self.robot_visualiser.object_pose.T = action[i]
+                self.robot_visualiser.policy_pose.T = action[i]
                 # self.robot_visualiser.policy_pose.T = action[i] 
                 # visualize the X_B_OO from deques
-                # self.robot_visualiser.object_pose.T = self.obs_deque[-1]["X_B_OO"]
+                self.robot_visualiser.object_pose.T = self.obs_deque[-1]["X_BO"]
                 # self.robot_visualiser.orientation_frame.T = self.obs_deque[-2]["X_BO"]
                 self.robot_visualiser.step(robot_state.q)
 
-                # # if task is teapot place, check if the teapot is in the cup
+                # # if task is teapot place, check if the teapot is in the teacup
                 # if task.current_task().name == 'teapot_place':
                 #     pdb.set_trace()
 
                 current_task.print_progress()
                 time.sleep(0.2)
 
-                # pdb.set_trace()
+                # Log the data
+                rgb = self.perception_system.tracker.current_rgb_frame
+                depth = self.perception_system.tracker.current_depth_frame
+                pose_dict = self.perception_system.tracker.current_poses
+                self.data_logger.log_data({
+                    'rgb': rgb,
+                    'depth': depth,
+                    'pose': pose_dict,
+                    'action': action[i],
+                    'progress': progress[i]
+                })
                 
                 
 
 if __name__ == '__main__':
+    clear_cuda_memory()
     robot = create_robot(dynamic_rel=0.4)
-    perception_system = PerceptionSystem()
+    perception_system = PerceptionSystem(robot)
     perception_system.start()
-
-    task = MakeTeaTask(perception_system=perception_system, robot=robot)
-    task.search_for_objects()
+    task = MakeTeaTask(perception_system=perception_system, robot=robot, vis=False)
+    task.move_to_phase_start()
+    data_logger = DataLogger('video_data_1.npz')
 
     controller = RobotInferenceController(
         perception_system=perception_system, 
         robot=robot,
         task=task,
+        data_logger=data_logger
         )
         
-    #     #saved_run_name={'cup_rotate': 'golden-grass-127_state', #'fiery-pond-126_state
-    #     #                                                  'place_saucer': 'laced-cosmos-124_state'}, 
-    #                                     #   robot_ip='172.16.0.2')
     controller.start_inference()
 
     perception_system.stop()
+    data_logger.save_data()
