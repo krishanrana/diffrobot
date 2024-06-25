@@ -84,7 +84,7 @@ if __name__ == '__main__':
     parser.add_argument('--mesh_file', type=str, default=f'{code_dir}/demo_data/teaspoon/mesh/mesh_scaled.obj')
     parser.add_argument('--est_refine_iter', type=int, default=5)
     parser.add_argument('--track_refine_iter', type=int, default=5)
-    parser.add_argument('--debug', type=int, default=3)
+    parser.add_argument('--debug', type=int, default=1)
     parser.add_argument('--debug_dir', type=str, default=f'{code_dir}/debug')
     args = parser.parse_args()
 

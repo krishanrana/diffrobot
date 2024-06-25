@@ -894,7 +894,7 @@ if __name__ == "__main__":
 
     fpath = "/home/krishan/work/2024/datasets/teaspoon_scoop_video_demo_2"
     dataset_utils = DatasetUtils(fpath)
-    detect_aruco_markers(fpath, marker_id=4, file_name="affordance_frames.json", dynamic_object=True)
+    detect_aruco_markers(fpath, marker_id=4, file_name="affordance_frames.json", dynamic_object=False)
     # detect_aruco_markers(fpath, marker_id=3, file_name="affordance_frames.json", dynamic_object=False)
     # detect_aruco_markers(fpath, marker_id=10, file_name="affordance_frames.json", dynamic_object=False)
     # detect_aruco_markers(fpath, marker_id=3, file_name="relative_frame.json", dynamic_object=False)
