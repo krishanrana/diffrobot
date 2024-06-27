@@ -231,9 +231,9 @@ class MakeTeaTask:
 
             CupRotate(
                 # policy_name = 'legendary-serenity-227_state',
-                policy_name= 'grateful-lion-168_state',  #'colorful-fire-216_state' ,#'dark-night-177_state', #'grateful-lion-168_state',
+                policy_name= 'dry-sea-235_state', #'grateful-lion-168_state',  #'colorful-fire-216_state' ,#'dark-night-177_state', #'grateful-lion-168_state',
                 oriented_frame_reference='base', 
-                progress_threshold= 0.95, #0.94,
+                progress_threshold= 0.88, #0.94,
                 affordance_frame='cup', 
                 cup=self.objects['cup']),
             # PlaceSaucer(
@@ -271,7 +271,7 @@ class MakeTeaTask:
             # PickSpoon(
             #     oriented_frame_reference='base', 
             #     # policy_name= 'lively-haze-162_state',#'stilted-aardvark-209_state', #'charmed-tree-186_state',#'lively-haze-162_state',
-            #     policy_name= 'lively-haze-162_state', #'cerulean-donkey-214_state', #'stilted-aardvark-209_state', #'charmed-tree-186_state',#'lively-haze-162_state',
+            #     policy_name= 'fast-donkey-242_state', #'lively-haze-162_state', #'cerulean-donkey-214_state', #'stilted-aardvark-209_state', #'charmed-tree-186_state',#'lively-haze-162_state',
             #     progress_threshold=0.90,
             #     affordance_frame='spoon', 
             #     spoon=self.objects['spoon']),
@@ -407,7 +407,7 @@ class MakeTeaTask:
         # Once these poses are found, the robot will initiate the policy.
 
         robot = self.robot
-        sweep_angles = np.linspace(0, 150, 8)
+        sweep_angles = np.linspace(-90, 90, 8)
         for sweep_angle in sweep_angles:
             robot.move_to_joints(np.deg2rad([sweep_angle, 0, 0, -110, 0, 110, 45]))
             self.detect_objects()
@@ -533,8 +533,9 @@ class RobotInferenceController:
                 # self.robot_visualiser.ee_pose.T = sm.SE3(X_BE, check=False).norm()	
                 # if X_EA is not None:
                     # self.robot_visualiser.ee_pose.T = X_BE 
-                self.robot_visualiser.object_pose.T = action[i]
-                # self.robot_visualiser.policy_pose.T = action[i] 
+                self.robot_visualiser.object_pose.T = self.obs_deque[-1]["X_BO"]
+                # self.robot_visualiser.object_pose.T = action[i]
+                self.robot_visualiser.policy_pose.T = action[i] 
                 # visualize the X_B_OO from deques
                 # self.robot_visualiser.object_pose.T = self.obs_deque[-1]["X_B_OO"]
                 # self.robot_visualiser.orientation_frame.T = self.obs_deque[-2]["X_BO"]

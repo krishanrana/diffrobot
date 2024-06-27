@@ -118,6 +118,10 @@ class Task:
             run_path = f'/mnt/droplet/{self.policy_name}/transforms/ee_transform.json'
             with open(run_path, 'r') as f:
                 self.ee_transform = json.load(f)['X_OA']
+
+        params_path = f'/mnt/droplet/{self.policy_name}/config_state_pretrain'
+        self.params = get_config(params_path, mode='infer')
+        self.z_up = self.params.z_up
     
     def set_progress(self, progress: float):
         self.progress = progress
@@ -193,10 +197,11 @@ class TeapotPlace(Task):
         }
 
 class PickTeaspoon(Task):
-    def __init__(self, teaspoon: ManipObject, **kwargs):
+    def __init__(self, teacup: ManipObject, **kwargs):
         super().__init__('pick_teaspoon', **kwargs)
         self.objects = {
-            'teaspoon': teaspoon,
+            # 'teaspoon': teaspoon,
+            'teacup': teacup,
         }
         
 
@@ -211,7 +216,8 @@ class StirTeaspoon(Task):
 class PerceptionSystem:
     def __init__(self, robot):
         self.X_BC = self.get_camera_pose(robot, load_transform=True)
-        objects = ["teacup" ,"saucer", "teapot", "teaspoon"]
+        # objects = ["teacup" ,"saucer", "teapot", "teaspoon"]
+        objects = ["teacup", "teaspoon"]
         self.tracker = MultiObjectTracker(objects)
     
     def start(self):
@@ -257,59 +263,58 @@ class MakeTeaTask:
             'teaspoon': ManipObject(name='teaspoon', aruco_key=8),
         }       
         self.sub_tasks : list[Task] = [
-            TeacupRotate(
-                policy_name = 'dry-sea-235_state',
-                #policy_name= 'grateful-lion-168_state',  #'colorful-fire-216_state' ,#'dark-night-177_state', #'grateful-lion-168_state',
-                oriented_frame_reference='base', 
-                progress_threshold= 0.88, #0.94,
-                affordance_frame='teacup', 
-                teacup=self.objects['teacup']),
-            PlaceSaucer(
-                policy_name= 'fancy-glade-228_state',
-                #policy_name= 'cosmic-universe-169_state', #'cosmic-universe-169_state', #'rich-brook-184_state',#'cosmic-universe-169_state', #'hopeful-tree-173_state',
-                oriented_frame_reference='teacup', 
-                progress_threshold=0.83,
-                affordance_frame='saucer',
-                secondary_affordance_frame='teacup',
-                transform_ee_frame=False, 
-                saucer=self.objects['saucer'],
-                teacup=self.objects['teacup']),
-            TeapotRotate(
-                policy_name= 'dry-sky-157_state', #'morning-moon-217_state' ,#'noble-water-180_state',#'dry-sky-157_state',
-                oriented_frame_reference='base', 
-                affordance_frame='teapot',
-                progress_threshold=0.92, 
-                teacup=self.objects['teacup'], 
-                teapot=self.objects['teapot']),
-            TeapotPour(
-                policy_name= 'dainty-bird-158_state', #'comic-pond-207_state', #'genial-night-181_state',#'dainty-bird-158_state',
-                oriented_frame_reference='teapot',
-                progress_threshold=0.84, 
-                affordance_frame='teacup', 
-                teacup=self.objects['teacup']),
-            TeapotPlace(
-                oriented_frame_reference='teapot',
-                secondary_affordance_frame='teapot',
-                policy_name= 'curious-music-239_state', # 'good-sponge-208_state',#'hopeful-flower-182_state', #'twilight-microwave-178_state', #'pious-water-167_state', #'twilight-dawn-164_state',
-                progress_threshold=0.80,
-                affordance_frame='teacup', 
-                teacup=self.objects['teacup'],
-                teapot=self.objects['teapot'],
-                transform_ee_frame=False),
+            # TeacupRotate(
+            #     policy_name = 'dry-sea-235_state',
+            #    #policy_name= 'grateful-lion-168_state',  #'colorful-fire-216_state' ,#'dark-night-177_state', #'grateful-lion-168_state',
+            #     oriented_frame_reference='base', 
+            #     progress_threshold= 0.88, #0.94,
+            #     affordance_frame='teacup', 
+            #     teacup=self.objects['teacup']),
+            # PlaceSaucer(
+            #     policy_name= 'fancy-glade-228_state',
+            #     #policy_name= 'cosmic-universe-169_state', #'cosmic-universe-169_state', #'rich-brook-184_state',#'cosmic-universe-169_state', #'hopeful-tree-173_state',
+            #     oriented_frame_reference='teacup', 
+            #     progress_threshold=0.83,
+            #     affordance_frame='saucer',
+            #     secondary_affordance_frame='teacup',
+            #     transform_ee_frame=False, 
+            #     saucer=self.objects['saucer'],
+            #     teacup=self.objects['teacup']),
+            # TeapotRotate(
+            #     policy_name= 'dry-sky-157_state', #'morning-moon-217_state' ,#'noble-water-180_state',#'dry-sky-157_state',
+            #     oriented_frame_reference='base', 
+            #     affordance_frame='teapot',
+            #     progress_threshold=0.92, 
+            #     teacup=self.objects['teacup'], 
+            #     teapot=self.objects['teapot']),
+            # TeapotPour(
+            #     policy_name= 'dainty-bird-158_state', #'comic-pond-207_state', #'genial-night-181_state',#'dainty-bird-158_state',
+            #     oriented_frame_reference='teapot',
+            #     progress_threshold=0.83, 
+            #     affordance_frame='teacup', 
+            #     teacup=self.objects['teacup']),
+            # TeapotPlace(
+            #     oriented_frame_reference='teapot',
+            #     secondary_affordance_frame='teapot',
+            #     policy_name= 'curious-music-239_state', # 'good-sponge-208_state',#'hopeful-flower-182_state', #'twilight-microwave-178_state', #'pious-water-167_state', #'twilight-dawn-164_state',
+            #     progress_threshold=0.77,
+            #     affordance_frame='teacup', 
+            #     teacup=self.objects['teacup'],
+            #     teapot=self.objects['teapot'],
+            #     transform_ee_frame=False),
             PickTeaspoon(
                 oriented_frame_reference='base', 
                 # policy_name= 'lively-haze-162_state',#'stilted-aardvark-209_state', #'charmed-tree-186_state',#'lively-haze-162_state',
-                policy_name= 'eager-frost-240_state', #'cerulean-donkey-214_state', #'stilted-aardvark-209_state', #'charmed-tree-186_state',#'lively-haze-162_state',
-                progress_threshold=0.90,
+                policy_name=  'dazzling-tree-247_state',#'eager-frost-240_state', #'cerulean-donkey-214_state', #'stilted-aardvark-209_state', #'charmed-tree-186_state',#'lively-haze-162_state',
+                progress_threshold=0.85,
                 affordance_frame='teaspoon', 
-                teaspoon=self.objects['teaspoon']),
-            # StirTeaspoon(
-            #     oriented_frame_reference='teacup',
-            #     policy_name= 'usual-snow-165_state', #'vital-moon-212_state', #'helpful-waterfall-210_state',#'jumping-water-185_state' ,#'usual-snow-165_state',
-            #     progress_threshold=0.92,
-            #     affordance_frame='teacup', 
-            #     teacup=self.objects['teacup'],
-            #     transform_affordance_frame=True),
+                teacup=self.objects['teacup']),
+            StirTeaspoon(
+                oriented_frame_reference='teacup',
+                policy_name= 'good-valley-248_state', #'vital-moon-212_state', #'helpful-waterfall-210_state',#'jumping-water-185_state' ,#'usual-snow-165_state',
+                progress_threshold=0.92,
+                affordance_frame='teacup', 
+                teacup=self.objects['teacup']),
         ]
 
         # FIND LAST POLICY LOADED
@@ -367,7 +372,9 @@ class MakeTeaTask:
         p = self.perception_system
 
         obj_list = self.current_task().objects
+        start_time = time.time()
         im = p.tracker.track_objects_once(obj_list)
+        print(f"Tracking time: {time.time() - start_time}")
         if vis:
             p.tracker.visualize_poses(im)
 
@@ -406,7 +413,9 @@ class MakeTeaTask:
             X_BE = X_BE @ X_EA
 
         X_BO = task.current_affordance_frame_pose()
-        X_BO = adjust_orientation_to_z_up(X_BO) 
+
+        if task.current_task().z_up:
+            X_BO = adjust_orientation_to_z_up(X_BO) 
 
         if task.current_task().affordance_transform is not None:
             X_BO = X_BO @ task.current_task().affordance_transform
