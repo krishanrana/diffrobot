@@ -93,7 +93,7 @@ class DatasetUtils:
         self.X_FE = sm.SE3(self.X_FE, check=False).norm()
         # self.affordance_transforms = json.load(open(os.path.join(self.dataset_path, "transforms", "to_afford.json"), "r"))  
 
-    def create_rlds(self, num_noisy_variations=0, transformed_affordance=False, transformed_ee=False, oriented_frame=True):
+    def create_rlds(self, num_noisy_variations=5, transformed_affordance=False, transformed_ee=False, oriented_frame=True, z_up=True):
         def add_noise(data, noise_level):
             return data + np.random.normal(scale=noise_level, size=data.shape)
 
@@ -168,8 +168,11 @@ class DatasetUtils:
                     X_BE_follower = [x_be @ X_EA for x_be in X_BE_follower]
                     
 
-                X_B_O1 = df_object[df_object['frame_id'].isin(phase_data['idx'])]
-                X_B_O1 = [self.adjust_orientation_to_z_up(np.array(pose)) for pose in X_B_O1['X_BO']]
+                X_B_O1 = df_object #[df_object['frame_id'].isin(phase_data['idx'])]
+                if z_up:
+                    X_B_O1 = [self.adjust_orientation_to_z_up(np.array(pose)) for pose in X_B_O1['X_BO']]
+                else:
+                    X_B_O1 = [np.array(pose) for pose in X_B_O1['X_BO']]
 
                 # get global object data
                 pos_object_global, orien_object_global = self.extract_robot_pos_orien(X_B_O1)
@@ -888,14 +891,17 @@ def detect_aruco_markers(dataset_path:str, marker_id:int=3, file_name:str="cup_f
 
     return
 
+def detect_with_foundationpose():
+    pass
+
 
 
 if __name__ == "__main__":
 
-    fpath = "/home/krishan/work/2024/datasets/teaspoon_scoop_video_demo_2"
+    fpath = "/home/krishan/work/2024/datasets/cup_rotate_FINAL_VIDEO_DEMO"
     dataset_utils = DatasetUtils(fpath)
-    detect_aruco_markers(fpath, marker_id=4, file_name="affordance_frames.json", dynamic_object=False)
-    # detect_aruco_markers(fpath, marker_id=3, file_name="affordance_frames.json", dynamic_object=False)
+    # detect_aruco_markers(fpath, marker_id=4, file_name="affordance_frames.json", dynamic_object=False)
+    detect_aruco_markers(fpath, marker_id=3, file_name="affordance_frames.json", dynamic_object=True)
     # detect_aruco_markers(fpath, marker_id=10, file_name="affordance_frames.json", dynamic_object=False)
     # detect_aruco_markers(fpath, marker_id=3, file_name="relative_frame.json", dynamic_object=False)
     # rlds = dataset_utils.create_rlds()

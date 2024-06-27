@@ -15,9 +15,9 @@ import collections
 
 
 # dataset_path = "/home/krishan/work/2024/datasets/cup_10_demos_again"
-dataset_path = "/home/krishan/work/2024/datasets/teaspoon_scoop_video_demo_2"
+dataset_path = "/home/krishan/work/2024/datasets/teacup_rotate_foundationpose_new"
 dutils = DatasetUtils(dataset_path)
-rlds, stats = dutils.create_rlds(num_noisy_variations=0, transformed_affordance=False, transformed_ee=False)
+rlds, stats = dutils.create_rlds(num_noisy_variations=0, transformed_affordance=False, transformed_ee=False, z_up=True)
 env = RobotViz()
 
 # policy_name = 'twilight-dawn-164_state'
@@ -66,8 +66,8 @@ for episode in rlds:
             # if idx == 1:
             #     pdb.set_trace()
 
-            if idx % 2 == 0:
-                continue
+            # if idx % 2 == 0:
+            #     continue
 
             X_BE = np.array(phase_data['X_BE_follower'][idx])
             X_BE_leader = np.array(phase_data['X_BE_leader'][idx])
@@ -112,7 +112,9 @@ for episode in rlds:
             env.cup_handle.T = sm.SE3(X_BE, check=False).norm()
             env.step(phase_data['gello_q'][idx])
             # env.step(phase_data['gello_q'][idx], robot_q_recovered[0])
-            time.sleep(0.1)
+            time.sleep(0.2)
+
+    pdb.set_trace()
         
     
     

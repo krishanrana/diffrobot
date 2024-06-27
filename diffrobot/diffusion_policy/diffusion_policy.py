@@ -53,6 +53,7 @@ class DiffusionPolicy():
             self.dutils = DatasetUtils(self.params.dataset_path + saved_run_name)
 
         print('Using {} action frame'.format(self.params.action_frame))
+        print('Using z_up: {}'.format(self.params.z_up))
 
         # create network object
         self.noise_pred_net = ConditionalUnet1D(
@@ -176,6 +177,7 @@ class DiffusionPolicy():
                             "freq_divisor": self.params.freq_divisor,
                             "transformed_ee": self.params.transformed_ee,
                             "oriented_frame": self.params.oriented_frame,
+                            "z_up": self.params.z_up,
                             "transformed_affordance": self.params.transformed_affordance,
                             "action_frame": self.params.action_frame,}
             

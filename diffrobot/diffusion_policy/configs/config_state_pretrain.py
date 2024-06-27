@@ -1,6 +1,6 @@
 import torch
 
-dataset_path = "/home/krishan/work/2024/datasets/teaspoon_scoop_video_demo_2" # TODO: DID YOU UPDATE THE SYMETRIC FLAG BELOW?
+dataset_path = "/home/krishan/work/2024/datasets/cup_video_demo_3" # TODO: DID YOU UPDATE THE SYMETRIC FLAG BELOW?
 action_frame = 'object_centric' # 'global' or 'object_centric' or 'ee_centric'
 
 
@@ -8,6 +8,7 @@ symmetric = False # this should actually be if there is a goal orientation or no
 transformed_affordance = False
 transformed_ee = False
 oriented_frame = True
+z_up = True
 
 down_dims = [128,256,256]
 diffusion_step_embed_dim = 128
